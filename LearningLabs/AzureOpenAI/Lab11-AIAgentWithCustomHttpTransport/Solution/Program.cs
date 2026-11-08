@@ -1,0 +1,242 @@
+using System.ClientModel;
+using System.ClientModel.Primitives;
+using System.Diagnostics;
+using Azure.Identity;
+using Microsoft.Agents.AI;
+using Microsoft.Extensions.AI;
+using OpenAI;
+using OpenAI.Chat;
+using OpenTelemetry;
+using OpenTelemetry.Trace;
+using CommonUtilities;
+
+using AIAgentWithCustomHttpTransport;
+using AIAgentWithCustomHttpTransport.Tools;
+using static AIAgentWithCustomHttpTransport.HttpConsole;
+using static AIAgentWithCustomHttpTransport.TraceConsole;
+
+// ============================================
+// SCENARIO SELECTION - Choose which scenarios to run
+// ============================================
+// dotnet run                          -> the implemented scenarios (a scenario whose code is still the delivered one is left out)
+// dotnet run -- --scenarios 2         -> scenario 2 only (and the scenarios it requires)
+// dotnet run -- --scenarios 1,3       -> scenarios 1 and 3
+// dotnet run -- --list-scenarios      -> the scenarios of this lab and their state
+ScenarioSelection scenarioSelection = ScenarioSelection.FromArgs(args);
+// ============================================
+
+bool ShouldRunScenario(int scenario) => scenarioSelection.ShouldRun(scenario);
+
+// BONUS (optional, needs Docker): also send the spans to a local Grafana (GrafanaExport.cs; README, "Bonus: see the run in Grafana").
+// Provided, nothing to write: it does nothing unless the OTEL_EXPORTER_OTLP_ENDPOINT environment variable is set.
+using GrafanaExport? grafanaExport = GrafanaExport.StartIfConfigured();
+
+#region Setup: Configuration and Client Initialization
+
+// Step 1: Load Azure OpenAI settings from configuration
+var settings = ConfigurationHelper.GetAzureOpenAISettings();
+Console.WriteLine($"Endpoint: {settings.Endpoint}");
+Console.WriteLine($"Deployment: {settings.ChatDeploymentName}");
+
+// Step 2: Create the logging handler (bottom of this file) and an HttpClient that sends every request through it.
+// A DelegatingHandler only intercepts: InnerHandler (HttpClientHandler) is the handler that talks to the network.
+HttpLoggingHandler loggingHandler = new() { InnerHandler = new HttpClientHandler() };
+using HttpClient httpClient = new(loggingHandler);
+
+// Step 3: Create the client options: the Azure OpenAI v1 endpoint, and the custom HTTP transport.
+// HttpClientPipelineTransport (System.ClientModel) makes the OpenAI SDK send its requests with our HttpClient.
+// NetworkTimeout is applied to each attempt (the SDK retries some failures, each attempt goes through the handler).
+OpenAIClientOptions clientOptions = new()
+{
+    Endpoint = AzureOpenAIEndpoint.ToV1Uri(settings.Endpoint),
+    Transport = new HttpClientPipelineTransport(httpClient),
+    NetworkTimeout = TimeSpan.FromSeconds(30)
+};
+
+// Step 4: Create an OpenAIClient that targets the Azure OpenAI v1 endpoint (https://<resource>.openai.azure.com/openai/v1/)
+// - API key when one is configured
+// - otherwise Microsoft Entra ID: DefaultAzureCredential + BearerTokenPolicy (scope https://ai.azure.com/.default)
+// WARNING: DefaultAzureCredential is convenient for development. In production, prefer a specific credential
+// (e.g. ManagedIdentityCredential) to avoid latency and unintended credential probing.
+// The OpenAIClient(AuthenticationPolicy, ...) constructor is still flagged [Experimental] (OPENAI001) by the OpenAI SDK,
+// although it is the pattern documented by Microsoft for Entra ID with the Azure OpenAI v1 API.
+#pragma warning disable OPENAI001
+OpenAIClient client = !string.IsNullOrWhiteSpace(settings.APIKey)
+    ? new OpenAIClient(new ApiKeyCredential(settings.APIKey), clientOptions)
+    : new OpenAIClient(new BearerTokenPolicy(new DefaultAzureCredential(), "https://ai.azure.com/.default"), clientOptions);
+#pragma warning restore OPENAI001
+
+// Step 5: Get a ChatClient (Chat Completions API) for the deployment
+ChatClient chatClient = client.GetChatClient(settings.ChatDeploymentName);
+
+#endregion
+
+#region Scenario 1: See the HTTP traffic of an agent run
+
+if (ShouldRunScenario(1))
+{
+    ColoredConsole.WriteDividerLine();
+    ColoredConsole.WriteInfoLine("=== Scenario 1: See the HTTP traffic of an agent run ===");
+    string prompt = Questions.CapitalOfFrance;
+    ColoredConsole.WriteUserLine($"User: {prompt}");
+
+    // Step 1: Create a basic AI Agent from the ChatClient (its requests go through the custom transport)
+    AIAgent basicAgent = chatClient.AsAIAgent();
+
+    // Step 2: Run the agent, counting the HTTP requests sent by the handler during the run
+    // (no spinner in this lab: it would write over the HTTP log printed by the handler)
+    int requestsBefore = loggingHandler.RequestCount;
+    AgentResponse basicResponse = await basicAgent.RunAsync(prompt);
+
+    // Step 3: Display the answer, the number of HTTP requests of the run and the token usage
+    ColoredConsole.WritePrimaryLogLine("Agent answer:");
+    ColoredConsole.WriteAssistantLine(basicResponse.Text);
+    ColoredConsole.WritePrimaryLogLine($"HTTP requests sent by this run: {loggingHandler.RequestCount - requestsBefore}");
+    WriteTokenUsage(basicResponse);
+}
+
+#endregion
+
+#region Scenario 2: One agent run, several HTTP requests (function calling)
+
+if (ShouldRunScenario(2))
+{
+    ColoredConsole.WriteDividerLine();
+    ColoredConsole.WriteInfoLine("=== Scenario 2: One agent run, several HTTP requests (function calling) ===");
+    string prompt = Questions.WeatherInAmsterdam;
+    ColoredConsole.WriteUserLine($"User: {prompt}");
+
+    // Step 1: Create an agent with a function tool (its description and JSON schema are sent in the "tools" of each request)
+    AIAgent weatherAgent = chatClient.AsAIAgent(
+        instructions: Agents.Weather.Instructions,
+        name: Agents.Weather.Name,
+        tools: [AIFunctionFactory.Create(WeatherTools.GetWeather, "get_weather")]);
+
+    // Step 2: Run the agent, counting the HTTP requests: the model first asks for the tool ("tool_calls"),
+    // then the agent sends the tool result ("role": "tool") in a second request and gets the final answer
+    int requestsBefore = loggingHandler.RequestCount;
+    AgentResponse weatherResponse = await weatherAgent.RunAsync(prompt);
+
+    // Step 3: Display the answer, the number of HTTP requests of the run and the token usage (total of all the requests)
+    ColoredConsole.WritePrimaryLogLine("Agent answer:");
+    ColoredConsole.WriteAssistantLine(weatherResponse.Text);
+    ColoredConsole.WritePrimaryLogLine($"HTTP requests sent by this run: {loggingHandler.RequestCount - requestsBefore}");
+    WriteTokenUsage(weatherResponse);
+}
+
+#endregion
+
+#region Scenario 3: Observe an agent with OpenTelemetry
+
+if (ShouldRunScenario(3))
+{
+    ColoredConsole.WriteDividerLine();
+    ColoredConsole.WriteInfoLine("=== Scenario 3: Observe an agent with OpenTelemetry ===");
+    string prompt = Questions.UmbrellaInAmsterdam;
+    ColoredConsole.WriteUserLine($"User: {prompt}");
+
+    // Step 1: Create the tracer provider. It listens to the activity source of the lab, and keeps the finished spans
+    // in a list so that the lab can display them (in an application: an OTLP exporter to Grafana, or Azure Monitor)
+    const string TelemetrySourceName = "AIAgentWithCustomHttpTransport";
+    List<Activity> spans = [];
+    using TracerProvider tracerProvider = Sdk.CreateTracerProviderBuilder()
+        .AddSource(TelemetrySourceName)
+        .AddInMemoryExporter(spans)
+        .Build();
+
+    // Step 2: Create the weather agent of scenario 2, instrumented at two levels:
+    // - the chat client (clientFactory): a "chat" span for each model call, an "execute_tool" span for each tool call
+    // - the agent (AsBuilder().UseOpenTelemetry): an "invoke_agent" span around the whole run
+    // EnableSensitiveData stays false (the default): prompts, answers and tool arguments are not recorded
+    AIAgent weatherAgent = chatClient.AsAIAgent(
+            instructions: Agents.Weather.Instructions,
+            name: Agents.Weather.Name,
+            description: Agents.Weather.Description,
+            tools: [AIFunctionFactory.Create(WeatherTools.GetWeather, "get_weather")],
+            clientFactory: innerClient => innerClient.AsBuilder().UseOpenTelemetry(sourceName: TelemetrySourceName).Build())
+        .AsBuilder()
+        .UseOpenTelemetry(sourceName: TelemetrySourceName)
+        .Build();
+
+    // Step 3: Create a travel assistant that calls the weather agent as a tool, instrumented the same way
+    AIAgent travelAgent = chatClient.AsAIAgent(
+            instructions: Agents.TravelAssistant.Instructions,
+            name: Agents.TravelAssistant.Name,
+            tools: [weatherAgent.AsAIFunction()],
+            clientFactory: innerClient => innerClient.AsBuilder().UseOpenTelemetry(sourceName: TelemetrySourceName).Build())
+        .AsBuilder()
+        .UseOpenTelemetry(sourceName: TelemetrySourceName)
+        .Build();
+
+    // Step 4: Run the travel assistant without the HTTP log: the spans show the same run, from the agent's point of view
+    loggingHandler.WriteTraffic = false;
+    int requestsBefore = loggingHandler.RequestCount;
+    AgentResponse travelResponse = await travelAgent.RunAsync(prompt).WithSpinner("Running the travel assistant");
+    loggingHandler.WriteTraffic = true;
+
+    // Step 5: Display the answer, then the spans as a tree: the spans of the weather agent are inside the "execute_tool" span
+    // of the travel assistant, with their own token usage (the AgentResponse only has the usage of the travel assistant)
+    ColoredConsole.WritePrimaryLogLine("Agent answer:");
+    ColoredConsole.WriteAssistantLine(travelResponse.Text);
+    WriteSpanTree(spans);
+    ColoredConsole.WritePrimaryLogLine($"HTTP requests sent by this run: {loggingHandler.RequestCount - requestsBefore}");
+    WriteTokenUsage(travelResponse);
+}
+
+#endregion
+
+#region Custom HTTP handler: intercepts every request sent by the OpenAI SDK, and its response
+
+/// <summary>
+/// HTTP message handler placed in the HttpClient used by the OpenAI SDK: it sees each HTTP request when it leaves
+/// the SDK (after its retry and authentication policies) and each response before the SDK reads it.
+/// </summary>
+internal sealed class HttpLoggingHandler : DelegatingHandler
+{
+    private int _requestCount;
+
+    /// <summary>Number of HTTP requests sent through this handler since the start of the program.</summary>
+    public int RequestCount => _requestCount;
+
+    /// <summary>When false, the requests are counted and forwarded without being written (scenario 3).</summary>
+    public bool WriteTraffic { get; set; } = true;
+
+    protected override async Task<HttpResponseMessage> SendAsync(HttpRequestMessage request, CancellationToken cancellationToken)
+    {
+        // The same handler can serve several requests at the same time: count them atomically
+        int number = Interlocked.Increment(ref _requestCount);
+
+        // Step 1: Add a custom header to the request (correlation, tracking, routing through a gateway...)
+        request.Headers.Add("X-agent-name", "AIAgentWithCustomHttpTransport");
+
+        // Scenario 3 turns the HTTP log off: OpenTelemetry shows the same run as spans
+        if (!WriteTraffic)
+        {
+            return await base.SendAsync(request, cancellationToken);
+        }
+
+        // Step 2: Write the HTTP request: method and URL, headers (credentials masked by the helper), body
+        ColoredConsole.WriteDividerLine();
+        ColoredConsole.WriteInfoLine($"=== HTTP REQUEST #{number} ===");
+        ColoredConsole.WritePrimaryLogLine($"[URL] {request.Method} {request.RequestUri}");
+        WriteHeaders(request.Headers, request.Content);
+        await WriteBodyAsync(request.Content, cancellationToken);
+
+        // Step 3: Send the request to the next handler (the network) and measure the duration
+        long start = Stopwatch.GetTimestamp();
+        HttpResponseMessage response = await base.SendAsync(request, cancellationToken);
+        TimeSpan duration = Stopwatch.GetElapsedTime(start);
+
+        // Step 4: Write the HTTP response: status and duration, headers, body; then return it to the SDK
+        ColoredConsole.WriteEmptyLine();
+        ColoredConsole.WriteSuccessLine($"=== HTTP RESPONSE #{number} ===");
+        ColoredConsole.WritePrimaryLogLine($"[Status] {(int)response.StatusCode} {response.StatusCode} ({StatusLabel(response.StatusCode)}) in {duration.TotalMilliseconds:F0} ms");
+        WriteHeaders(response.Headers, response.Content);
+        await WriteBodyAsync(response.Content, cancellationToken);
+        ColoredConsole.WriteDividerLine();
+
+        return response;
+    }
+}
+
+#endregion

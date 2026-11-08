@@ -1,0 +1,113 @@
+using System.ClientModel;
+using System.ClientModel.Primitives;
+using A2A;
+using A2A.AspNetCore;
+using Azure.Identity;
+using Microsoft.Agents.AI;
+using Microsoft.Agents.AI.Hosting;
+using Microsoft.AspNetCore.Builder;
+using Microsoft.Extensions.AI;
+using Microsoft.Extensions.DependencyInjection;
+using OpenAI;
+using OpenAI.Chat;
+using CommonUtilities;
+
+using A2AServer;
+using A2AServer.Tools;
+
+// ============================================
+// SCENARIO SELECTION - Choose which scenarios to run
+// ============================================
+// dotnet run                          -> the implemented scenarios (a scenario whose code is still the delivered one is left out)
+// dotnet run -- --scenarios 2         -> scenario 2 only (and the scenarios it requires)
+// dotnet run -- --scenarios 1,3       -> scenarios 1 and 3
+// dotnet run -- --list-scenarios      -> the scenarios of this lab and their state
+// This lab has a single scenario: the server runs until you stop it (Ctrl+C)
+ScenarioSelection scenarioSelection = ScenarioSelection.FromArgs(args);
+// ============================================
+
+bool ShouldRunScenario(int scenario) => scenarioSelection.ShouldRun(scenario);
+
+#region Setup: Configuration and Client Initialization
+
+// Step 1: Load Azure OpenAI settings from configuration
+var settings = ConfigurationHelper.GetAzureOpenAISettings();
+Console.WriteLine($"Endpoint: {settings.Endpoint}");
+Console.WriteLine($"Deployment: {settings.ChatDeploymentName}");
+
+// TODO 1: Create the OpenAIClientOptions that point to the Azure OpenAI v1 endpoint
+// Hint: AzureOpenAIEndpoint.ToV1Uri(settings.Endpoint) turns "https://<resource>.openai.azure.com/" into ".../openai/v1/"
+// OpenAIClientOptions clientOptions = ...
+
+// TODO 2: Create the OpenAIClient
+// - If settings.APIKey is set: authenticate with an ApiKeyCredential
+// - Otherwise: authenticate with Microsoft Entra ID using a BearerTokenPolicy built from
+//   DefaultAzureCredential and the scope "https://ai.azure.com/.default"
+// Note: the AuthenticationPolicy constructor is flagged experimental (OPENAI001), keep the pragma around it.
+#pragma warning disable OPENAI001
+// OpenAIClient client = ...
+#pragma warning restore OPENAI001
+
+// TODO 3: Get a ChatClient (Chat Completions API) for the deployment
+// ChatClient chatClient = ...
+
+#endregion
+
+// Paths of the two agents on the server, and address the server listens on (A2AServer:BaseUrl)
+const string AuthAgentPath = "/a2a/authAgent";
+const string CustomerToneAgentPath = "/a2a/customerToneAgent";
+A2AServerSettings serverSettings = ConfigurationHelper.GetA2AServerSettings();
+
+#region Scenario 1: Host two agents (AuthAgent and CustomerToneAgent) with the A2A protocol
+
+if (ShouldRunScenario(1))
+{
+    ColoredConsole.WriteDividerLine();
+    ColoredConsole.WriteInfoLine("=== Scenario 1: A2A server with two agents ===");
+
+    // TODO 4: Create the ASP.NET Core application builder
+    // var builder = ...
+
+    // TODO 5: Create the API key tools of the AuthAgent from ConfigurationHelper.GetAPIKeySettings(),
+    // and display a notice when the signing secret is not configured (apiKeyTools.IsSecretConfigured)
+    // APIKeyTools apiKeyTools = ...
+
+    // TODO 6: Wrap GenerateAPIKey and ValidateAPIKey as AI tools named "generate_api_key" and "validate_api_key"
+    // IList<AITool> tools = ...
+
+    // TODO 7: Create the two agents from chatClient, with the instructions and the name of Agents.Auth (with the tools)
+    // and of Agents.CustomerTone (no tools), provided in LabPrompts.cs
+    // Hint: chatClient.AsAIAgent(instructions: Agents.Auth.Instructions, name: Agents.Auth.Name, tools: tools), same for Agents.CustomerTone without tools.
+    //       The names are the keys used by the A2A hosting to find the agents.
+    // AIAgent authAgent = ...
+    // AIAgent customerToneAgent = ...
+
+    // TODO 8: Give each agent a session store, registered under the name of the agent, and display a notice
+    // Hint: builder.Services.AddKeyedSingleton<AgentSessionStore>(authAgent.Name, new InMemoryAgentSessionStore()), same for
+    //       customerToneAgent, then ColoredConsole.WriteSecondaryLogLine("Session store: in memory (development only), one per agent.")
+    // Note: AgentSessionStore and InMemoryAgentSessionStore are flagged experimental (MAAI001), keep the pragma around them.
+#pragma warning disable MAAI001
+#pragma warning restore MAAI001
+
+    // TODO 9: Register an A2A server for each agent (builder.AddA2AServer), then build the application
+    // var app = ...
+
+    // TODO 10: Expose each agent with both A2A v1 protocol bindings at its path (AuthAgentPath, CustomerToneAgentPath)
+    // Hint: app.MapA2AJsonRpc(agent, path) and app.MapA2AHttpJson(agent, path)
+
+    // TODO 11: Publish the agent card of each agent at <agent path>/.well-known/agent-card.json
+    // Hint: app.MapWellKnownAgentCard(card, path) with AgentCards.CreateAuthAgentCard($"{serverSettings.BaseUrl}{AuthAgentPath}")
+    //       and AgentCards.CreateCustomerToneAgentCard(...)
+
+    // Provided: display the endpoints (the server only listens once TODO 12 runs it)
+    ColoredConsole.WritePrimaryLogLine($"AuthAgent:         {serverSettings.BaseUrl}{AuthAgentPath}");
+    ColoredConsole.WritePrimaryLogLine($"  Agent card:      {serverSettings.BaseUrl}{AuthAgentPath}/.well-known/agent-card.json");
+    ColoredConsole.WritePrimaryLogLine($"CustomerToneAgent: {serverSettings.BaseUrl}{CustomerToneAgentPath}");
+    ColoredConsole.WritePrimaryLogLine($"  Agent card:      {serverSettings.BaseUrl}{CustomerToneAgentPath}/.well-known/agent-card.json");
+    ColoredConsole.WriteSecondaryLogLine("Press Ctrl+C to stop the server.");
+
+    // TODO 12: Run the server until Ctrl+C, on the address of the configuration
+    // Hint: await app.RunAsync(serverSettings.BaseUrl);
+}
+
+#endregion

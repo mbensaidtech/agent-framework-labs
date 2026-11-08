@@ -1,0 +1,2527 @@
+{
+  "stages": [
+    {
+      "id": "build",
+      "title": "Build an agent",
+      "translations": { "fr": { "title": "Construire un agent" } }
+    },
+    {
+      "id": "conversations",
+      "title": "Conversations and control",
+      "translations": { "fr": { "title": "Conversations et contrôle" } }
+    },
+    {
+      "id": "knowledge",
+      "title": "Knowledge and memory",
+      "translations": { "fr": { "title": "Connaissances et mémoire" } }
+    },
+    {
+      "id": "multi-agent",
+      "title": "Agents working with agents",
+      "translations": { "fr": { "title": "Des agents avec des agents" } }
+    },
+    {
+      "id": "production",
+      "title": "In production",
+      "translations": { "fr": { "title": "En production" } }
+    },
+    {
+      "id": "further",
+      "title": "Going further",
+      "optional": true,
+      "translations": { "fr": { "title": "Pour aller plus loin" } }
+    }
+  ],
+  "labs": [
+    {
+      "id": "azureopenai-lab01",
+      "number": "01",
+      "track": "Azure OpenAI",
+      "stage": "build",
+      "title": "First Basic AI Agent",
+      "summary": "Create your first agent on Azure OpenAI, give it instructions, read token usage, stream a response, and run the same agent on the Responses API recommended by Microsoft.",
+      "level": "Beginner",
+      "objectives": [
+        "Connect to Azure OpenAI through the v1 API (API key or Microsoft Entra ID)",
+        "Turn a ChatClient into an AIAgent with AsAIAgent()",
+        "Give an agent instructions and a name",
+        "Run an agent with a prompt or with ChatMessages",
+        "Read token usage, including after a streamed run",
+        "Run the same agent on the Responses API and choose between Chat Completions and Responses"
+      ],
+      "path": "LearningLabs/AzureOpenAI/Lab01-FirstBasicAIAgent",
+      "startProject": "Start/FirstBasicAIAgent.csproj",
+      "solutionProject": "Solution/FirstBasicAIAgent.csproj",
+      "timeoutSeconds": 180,
+      "expectations": [
+        {
+          "id": "config",
+          "description": "Configuration loaded",
+          "pattern": "^Endpoint: \\S+"
+        },
+        {
+          "id": "scenario1",
+          "description": "Scenario 1 - the basic agent answered",
+          "pattern": "(?i)\\bParis\\b"
+        },
+        {
+          "id": "scenario2",
+          "description": "Scenario 2 - the agent with instructions answered",
+          "pattern": "(?i)\\d[\\d,.   ]*\\d\\s*(?:km|square\\s+kilomet)"
+        },
+        {
+          "id": "scenario3",
+          "description": "Scenario 3 - the agent answered the ChatMessages",
+          "pattern": "(?is)\\A(?=.*\\bBelgium\\b)(?=.*\\bGermany\\b)(?=.*\\bSpain\\b)"
+        },
+        {
+          "id": "scenario4",
+          "description": "Scenario 4 - token usage displayed",
+          "pattern": "(?is)input tokens:?\\s*\\d+"
+        },
+        {
+          "id": "scenario5",
+          "description": "Scenario 5 - the streamed answer was displayed",
+          "pattern": "(?i)\\bParis\\b"
+        },
+        {
+          "id": "scenario5-usage",
+          "description": "Scenario 5 - token usage of the streamed run displayed",
+          "pattern": "(?is)input tokens:?\\s*\\d+"
+        },
+        {
+          "id": "scenario6",
+          "description": "Scenario 6 - the agent on the Responses API answered",
+          "pattern": "(?i)\\d[\\d,.   ]*\\d\\s*(?:km|square\\s+kilomet)"
+        },
+        {
+          "id": "scenario6-response-id",
+          "description": "Scenario 6 - the response was stored by the service (resp_... id)",
+          "pattern": "\\bresp_[0-9A-Za-z]{10,}\\b"
+        },
+        {
+          "id": "scenario6-usage",
+          "description": "Scenario 6 - token usage of the Responses API run displayed",
+          "pattern": "(?is)input tokens:?\\s*\\d+"
+        },
+        {
+          "id": "scenario6-follow-up",
+          "description": "Scenario 6 - the follow-up question was answered in the same conversation (population of Italy)",
+          "pattern": "(?i)\\b\\d[\\d,. \u00a0\u202f]*\\s*(?:million|inhabitants|people|residents)\\b"
+        }
+      ],
+      "translations": {
+        "fr": {
+          "track": "Azure OpenAI",
+          "title": "Premier agent IA",
+          "level": "Débutant",
+          "summary": "Créez votre premier agent sur Azure OpenAI, donnez-lui des instructions, lisez la consommation de tokens, diffusez une réponse en streaming et exécutez le même agent sur l'API Responses recommandée par Microsoft.",
+          "objectives": [
+            "Se connecter à Azure OpenAI via l'API v1 (clé API ou Microsoft Entra ID)",
+            "Transformer un ChatClient en AIAgent avec AsAIAgent()",
+            "Donner des instructions et un nom à un agent",
+            "Exécuter un agent avec un prompt ou avec des ChatMessage",
+            "Lire la consommation de tokens, y compris après une exécution en streaming",
+            "Exécuter le même agent sur l'API Responses et choisir entre Chat Completions et Responses"
+          ],
+          "checks": {
+            "config": "Configuration chargée",
+            "scenario1": "Scénario 1 - l'agent de base a répondu",
+            "scenario2": "Scénario 2 - l'agent avec instructions a répondu",
+            "scenario3": "Scénario 3 - l'agent a répondu aux ChatMessage",
+            "scenario4": "Scénario 4 - consommation de tokens affichée",
+            "scenario5": "Scénario 5 - la réponse en streaming a été affichée",
+            "scenario5-usage": "Scénario 5 - consommation de tokens du streaming affichée",
+            "scenario6": "Scénario 6 - l'agent sur l'API Responses a répondu",
+            "scenario6-response-id": "Scénario 6 - la réponse a été stockée par le service (id resp_...)",
+            "scenario6-usage": "Scénario 6 - consommation de tokens de l'exécution sur l'API Responses affichée",
+            "scenario6-follow-up": "Scénario 6 - la question de suivi a obtenu une réponse dans la même conversation (population de l'Italie)"
+          }
+        }
+      }
+    },
+    {
+      "id": "azureopenai-lab02",
+      "number": "02",
+      "track": "Azure OpenAI",
+      "stage": "build",
+      "title": "AI Agent With Structured Output",
+      "summary": "Get answers as typed JSON: describe the format yourself, then use RunAsync<T>, a response format on the agent and a response format for a single streamed run.",
+      "level": "Beginner",
+      "objectives": [
+        "See why a JSON format described in the instructions is fragile",
+        "Get a strongly-typed result with RunAsync<T>() and AgentResponse<T>.Result",
+        "Generate a JSON schema from a .NET type with ChatResponseFormat.ForJsonSchema<T>()",
+        "Configure the response format of an agent with ChatClientAgentOptions",
+        "Set the response format of a single run with AgentRunOptions, including when streaming"
+      ],
+      "path": "LearningLabs/AzureOpenAI/Lab02-AIAgentWithSO",
+      "startProject": "Start/AIAgentWithSO.csproj",
+      "solutionProject": "Solution/AIAgentWithSO.csproj",
+      "timeoutSeconds": 180,
+      "expectations": [
+        {
+          "id": "config",
+          "description": "Configuration loaded",
+          "pattern": "^Endpoint: \\S+"
+        },
+        {
+          "id": "scenario1",
+          "description": "Scenario 1 - the JSON described in the instructions was parsed",
+          "pattern": "^Name: \\S"
+        },
+        {
+          "id": "scenario1-usage",
+          "description": "Scenario 1 - token usage displayed",
+          "pattern": "(?is)input tokens:?\\s*\\d+"
+        },
+        {
+          "id": "scenario2",
+          "description": "Scenario 2 - RunAsync<T> returned a typed Restaurant",
+          "pattern": "^Name: \\S"
+        },
+        {
+          "id": "scenario2-usage",
+          "description": "Scenario 2 - token usage displayed",
+          "pattern": "(?is)input tokens:?\\s*\\d+"
+        },
+        {
+          "id": "scenario3",
+          "description": "Scenario 3 - the agent returned JSON that was deserialized",
+          "pattern": "(?is)\\A(?=.*^\\{[^\\n]*\"name\"\\s*:)(?=.*^Name: \\S)"
+        },
+        {
+          "id": "scenario3-usage",
+          "description": "Scenario 3 - token usage displayed",
+          "pattern": "(?is)input tokens:?\\s*\\d+"
+        },
+        {
+          "id": "scenario4",
+          "description": "Scenario 4 - the streamed JSON was deserialized",
+          "pattern": "(?is)\\A(?=.*^\\{[^\\n]*\"name\"\\s*:)(?=.*^Name: \\S)"
+        },
+        {
+          "id": "scenario4-usage",
+          "description": "Scenario 4 - token usage of the streamed run displayed",
+          "pattern": "(?is)input tokens:?\\s*\\d+"
+        }
+      ],
+      "translations": {
+        "fr": {
+          "track": "Azure OpenAI",
+          "title": "Agent IA avec sortie structurée",
+          "level": "Débutant",
+          "summary": "Obtenez des réponses en JSON typé : décrivez vous-même le format, puis utilisez RunAsync<T>, un format de réponse sur l'agent et un format de réponse pour une seule exécution en streaming.",
+          "objectives": [
+            "Comprendre pourquoi un format JSON décrit dans les instructions est fragile",
+            "Obtenir un résultat fortement typé avec RunAsync<T>() et AgentResponse<T>.Result",
+            "Générer un schéma JSON à partir d'un type .NET avec ChatResponseFormat.ForJsonSchema<T>()",
+            "Configurer le format de réponse d'un agent avec ChatClientAgentOptions",
+            "Définir le format de réponse d'une seule exécution avec AgentRunOptions, y compris en streaming"
+          ],
+          "checks": {
+            "config": "Configuration chargée",
+            "scenario1": "Scénario 1 - le JSON décrit dans les instructions a été analysé",
+            "scenario1-usage": "Scénario 1 - consommation de tokens affichée",
+            "scenario2": "Scénario 2 - RunAsync<T> a renvoyé un Restaurant typé",
+            "scenario2-usage": "Scénario 2 - consommation de tokens affichée",
+            "scenario3": "Scénario 3 - l'agent a renvoyé du JSON qui a été désérialisé",
+            "scenario3-usage": "Scénario 3 - consommation de tokens affichée",
+            "scenario4": "Scénario 4 - le JSON reçu en streaming a été désérialisé",
+            "scenario4-usage": "Scénario 4 - consommation de tokens du streaming affichée"
+          }
+        }
+      }
+    },
+    {
+      "id": "azureopenai-lab03",
+      "number": "03",
+      "track": "Azure OpenAI",
+      "stage": "build",
+      "title": "AI Agent With Function Tools",
+      "summary": "Give an agent .NET methods it can call: register tools one by one, write a plugin that declares its tools and checks the arguments chosen by the model, inject services into tools and trace every tool call with a middleware.",
+      "level": "Beginner",
+      "objectives": [
+        "Turn .NET methods into tools with AIFunctionFactory.Create() and describe them with [Description]",
+        "Give tools to an agent with AsAIAgent(..., tools: ...)",
+        "Write a plugin that declares its tools and checks the arguments chosen by the model",
+        "Let tools resolve services with an IServiceProvider parameter and AsAIAgent(..., services: ...)",
+        "Trace every tool call with a function calling middleware (AsBuilder().Use(...))"
+      ],
+      "path": "LearningLabs/AzureOpenAI/Lab03-AIAgentWithFunctionTools",
+      "startProject": "Start/AIAgentWithFunctionTools.csproj",
+      "solutionProject": "Solution/AIAgentWithFunctionTools.csproj",
+      "timeoutSeconds": 180,
+      "expectations": [
+        {
+          "id": "config",
+          "description": "Configuration loaded",
+          "pattern": "^Endpoint: \\S+"
+        },
+        {
+          "id": "scenario1-tools",
+          "description": "Scenario 1 - every tool has the description taken from [Description]",
+          "pattern": "(?is)\\A(?=.*\\bget_employee_info\\W+Retrieves detailed information about an employee)(?=.*\\bget_meeting_rooms\\W+Lists all available meeting rooms)(?=.*\\bbook_meeting_room\\W+Books a meeting room)"
+        },
+        {
+          "id": "scenario1",
+          "description": "Scenario 1 - the agent answered with the data returned by get_employee_info",
+          "pattern": "(?is)Mohammed BEN SAID"
+        },
+        {
+          "id": "scenario1-usage",
+          "description": "Scenario 1 - token usage displayed",
+          "pattern": "(?is)input tokens:?\\s*\\d+"
+        },
+        {
+          "id": "scenario2-tools",
+          "description": "Scenario 2 - the plugin declared exactly its two tools",
+          "pattern": "^Tools declared by the plugin: get_meeting_rooms, book_meeting_room\\s*$"
+        },
+        {
+          "id": "scenario2",
+          "description": "Scenario 2 - the plugin refused the booking in the past and explained why to the model",
+          "pattern": "(?is)^\\[Tool\\] book_meeting_room returned: Cannot book: 2025-12-16 is in the past"
+        },
+        {
+          "id": "scenario2-booked",
+          "description": "Scenario 2 - the booking of tomorrow was confirmed",
+          "pattern": "(?is)^\\[Tool\\] book_meeting_room returned: Booking confirmed!"
+        },
+        {
+          "id": "scenario2-usage",
+          "description": "Scenario 2 - token usage displayed",
+          "pattern": "(?is)input tokens:?\\s*\\d+"
+        },
+        {
+          "id": "scenario3",
+          "description": "Scenario 3 - the notification was stored and read back through the injected repository",
+          "pattern": "(?is)^[^\\n]*\\b[0-9a-f]{8}\\b[^\\n]*Meeting at 3pm tomorrow"
+        },
+        {
+          "id": "scenario3-usage",
+          "description": "Scenario 3 - token usage displayed",
+          "pattern": "(?is)input tokens:?\\s*\\d+"
+        },
+        {
+          "id": "scenario4-middleware",
+          "description": "Scenario 4 - the middleware traced the call of get_employee_info with its argument",
+          "pattern": "^\\[Middleware\\] Calling get_employee_info\\(employeeId: EMP003\\)"
+        },
+        {
+          "id": "scenario4-booking",
+          "description": "Scenario 4 - the middleware saw book_meeting_room confirm the booking",
+          "pattern": "^\\[Middleware\\] book_meeting_room returned: Booking confirmed!"
+        },
+        {
+          "id": "scenario4-usage",
+          "description": "Scenario 4 - token usage displayed",
+          "pattern": "(?is)input tokens:?\\s*\\d+"
+        }
+      ],
+      "translations": {
+        "fr": {
+          "track": "Azure OpenAI",
+          "title": "Agent IA avec function tools",
+          "level": "Débutant",
+          "summary": "Donnez à un agent des méthodes .NET qu'il peut appeler : enregistrez les outils un par un, écrivez un plugin qui déclare ses outils et vérifie les arguments choisis par le modèle, injectez des services dans les outils et tracez chaque appel d'outil avec un middleware.",
+          "objectives": [
+            "Transformer des méthodes .NET en outils avec AIFunctionFactory.Create() et les décrire avec [Description]",
+            "Donner des outils à un agent avec AsAIAgent(..., tools: ...)",
+            "Écrire un plugin qui déclare ses outils et vérifie les arguments choisis par le modèle",
+            "Permettre aux outils de résoudre des services avec un paramètre IServiceProvider et AsAIAgent(..., services: ...)",
+            "Tracer chaque appel d'outil avec un middleware d'appel de fonction (AsBuilder().Use(...))"
+          ],
+          "checks": {
+            "config": "Configuration chargée",
+            "scenario1-tools": "Scénario 1 - chaque outil a la description issue de [Description]",
+            "scenario1": "Scénario 1 - l'agent a répondu avec les données renvoyées par get_employee_info",
+            "scenario1-usage": "Scénario 1 - consommation de tokens affichée",
+            "scenario2-tools": "Scénario 2 - le plugin a déclaré exactement ses deux outils",
+            "scenario2": "Scénario 2 - le plugin a refusé la réservation dans le passé et expliqué pourquoi au modèle",
+            "scenario2-booked": "Scénario 2 - la réservation de demain a été confirmée",
+            "scenario2-usage": "Scénario 2 - consommation de tokens affichée",
+            "scenario3": "Scénario 3 - la notification a été enregistrée et relue via le repository injecté",
+            "scenario3-usage": "Scénario 3 - consommation de tokens affichée",
+            "scenario4-middleware": "Scénario 4 - le middleware a tracé l'appel de get_employee_info avec son argument",
+            "scenario4-booking": "Scénario 4 - le middleware a vu book_meeting_room confirmer la réservation",
+            "scenario4-usage": "Scénario 4 - consommation de tokens affichée"
+          }
+        }
+      }
+    },
+    {
+      "id": "azureopenai-lab04",
+      "number": "04",
+      "track": "Azure OpenAI",
+      "stage": "build",
+      "title": "AI Agent With MCP Client",
+      "summary": "Connect to the remote Hugging Face MCP server, discover its tools, let an agent search the Hub with them and return a typed result, then give the agent only the tool it needs. Bonus on the Responses API: use the same MCP client, then let the service call the MCP server itself (hosted MCP).",
+      "level": "Intermediate",
+      "objectives": [
+        "Connect to a remote MCP server with McpClient.CreateAsync() and the Streamable HTTP transport",
+        "Send an optional access token to an MCP server (AdditionalHeaders)",
+        "List the tools of an MCP server and give them to an agent (an McpClientTool is an AIFunction)",
+        "Configure an agent with ChatClientAgentOptions (instructions, tools, MaxOutputTokens, Temperature)",
+        "Combine MCP tools and structured output with RunAsync<T>() and list the tools the agent called",
+        "Reduce the token usage by giving the agent only the tools it needs",
+        "Bonus: use the same MCP client and tools on the Responses API",
+        "Bonus: let the service call an MCP server with HostedMcpServerTool, and tell who ran each tool call (application or service)"
+      ],
+      "path": "LearningLabs/AzureOpenAI/Lab04-AIAgentWithMCPClient",
+      "startProject": "Start/AIAgentWithMCPClient.csproj",
+      "solutionProject": "Solution/AIAgentWithMCPClient.csproj",
+      "timeoutSeconds": 300,
+      "bonusScenarios": [4, 5],
+      "expectations": [
+        {
+          "id": "config",
+          "description": "Configuration loaded (Azure OpenAI and MCP server)",
+          "pattern": "(?s)^Endpoint: \\S+.*?^MCP Server: https://\\S+ \\((?:access token|anonymous)\\)"
+        },
+        {
+          "id": "scenario1-server",
+          "description": "Scenario 1 - connected to the MCP server (server information received)",
+          "pattern": "(?i)\\bhuggingface\\S*\\s+v?\\d+\\.\\d+"
+        },
+        {
+          "id": "scenario1-tools",
+          "description": "Scenario 1 - the tools of the server were listed, including hub_repo_search",
+          "pattern": "\\bhub_repo_search\\b"
+        },
+        {
+          "id": "scenario2",
+          "description": "Scenario 2 - structured result with models of the Hub (owner/name and link)",
+          "pattern": "(?i)https://(?:hf\\.co|huggingface\\.co)/[\\w.-]+/[\\w.-]+"
+        },
+        {
+          "id": "scenario2-tool-calls",
+          "description": "Scenario 2 - the agent called at least one MCP tool",
+          "pattern": "(?i)\\bhub_repo_search\\b[^\\n]*\\bquery\\b"
+        },
+        {
+          "id": "scenario2-usage",
+          "description": "Scenario 2 - token usage displayed",
+          "pattern": "(?is)input tokens:?\\s*\\d+"
+        },
+        {
+          "id": "scenario3-tools",
+          "description": "Scenario 3 - only hub_repo_search was given to the agent",
+          "pattern": "^Tools given to the agent: hub_repo_search\\s*$"
+        },
+        {
+          "id": "scenario3",
+          "description": "Scenario 3 - models found with the selected tool",
+          "pattern": "(?<![\\w./:])[A-Za-z0-9][\\w.-]*/[\\w.-]+"
+        },
+        {
+          "id": "scenario3-usage",
+          "description": "Scenario 3 - token usage displayed",
+          "pattern": "(?is)input tokens:?\\s*\\d+"
+        },
+        {
+          "id": "scenario4",
+          "description": "Scenario 4 - on the Responses API, models of the Hub found with the local MCP tool",
+          "pattern": "(?<![\\w./:])[A-Za-z0-9][\\w.-]*/[\\w.-]+, [A-Za-z0-9][\\w.-]*/[\\w.-]+"
+        },
+        {
+          "id": "scenario4-local-tool",
+          "description": "Scenario 4 - the MCP tool was run by the application, through its MCP client",
+          "pattern": "^- hub_repo_search\\([^\\n]*\\bquery\\b[^\\n]*\\) - run by this application"
+        },
+        {
+          "id": "scenario4-response-id",
+          "description": "Scenario 4 - the agent ran on the Responses API (resp_... id)",
+          "pattern": "\\bresp_[0-9A-Za-z]{10,}\\b"
+        },
+        {
+          "id": "scenario4-usage",
+          "description": "Scenario 4 - token usage displayed",
+          "pattern": "(?is)input tokens:?\\s*\\d+"
+        },
+        {
+          "id": "scenario5",
+          "description": "Scenario 5 - models of the Hub found with the hosted MCP server",
+          "pattern": "(?<![\\w./:])[A-Za-z0-9][\\w.-]*/[\\w.-]+, [A-Za-z0-9][\\w.-]*/[\\w.-]+"
+        },
+        {
+          "id": "scenario5-listed",
+          "description": "Scenario 5 - the service listed the tools of the hosted MCP server",
+          "pattern": "^- MCP tools listed by the service \\(huggingface\\): [^\\n]*\\bhub_repo_search\\b"
+        },
+        {
+          "id": "scenario5-hosted-tool",
+          "description": "Scenario 5 - the MCP tool was run by the service (hosted MCP)",
+          "pattern": "^- huggingface/hub_repo_search\\([^\\n]*\\bquery\\b[^\\n]*\\) - run by the service \\(hosted MCP\\)"
+        },
+        {
+          "id": "scenario5-usage",
+          "description": "Scenario 5 - token usage displayed",
+          "pattern": "(?is)input tokens:?\\s*\\d+"
+        }
+      ],
+      "translations": {
+        "fr": {
+          "track": "Azure OpenAI",
+          "title": "Agent IA avec client MCP",
+          "level": "Intermédiaire",
+          "summary": "Connectez-vous au serveur MCP distant de Hugging Face, découvrez ses outils, laissez un agent chercher dans le Hub avec eux et renvoyer un résultat typé, puis ne donnez à l'agent que l'outil dont il a besoin. En bonus, sur l'API Responses : utilisez le même client MCP, puis laissez le service appeler lui-même le serveur MCP (MCP hébergé).",
+          "objectives": [
+            "Se connecter à un serveur MCP distant avec McpClient.CreateAsync() et le transport Streamable HTTP",
+            "Envoyer un jeton d'accès facultatif à un serveur MCP (AdditionalHeaders)",
+            "Lister les outils d'un serveur MCP et les donner à un agent (un McpClientTool est une AIFunction)",
+            "Configurer un agent avec ChatClientAgentOptions (instructions, outils, MaxOutputTokens, Temperature)",
+            "Combiner outils MCP et sortie structurée avec RunAsync<T>() et lister les outils appelés par l'agent",
+            "Réduire la consommation de tokens en ne donnant à l'agent que les outils utiles",
+            "Bonus : utiliser le même client MCP et les mêmes outils sur l'API Responses",
+            "Bonus : laisser le service appeler un serveur MCP avec HostedMcpServerTool, et savoir qui a exécuté chaque appel d'outil (application ou service)"
+          ],
+          "checks": {
+            "config": "Configuration chargée (Azure OpenAI et serveur MCP)",
+            "scenario1-server": "Scénario 1 - connecté au serveur MCP (informations du serveur reçues)",
+            "scenario1-tools": "Scénario 1 - les outils du serveur ont été listés, dont hub_repo_search",
+            "scenario2": "Scénario 2 - résultat structuré avec des modèles du Hub (owner/name et lien)",
+            "scenario2-tool-calls": "Scénario 2 - l'agent a appelé au moins un outil MCP",
+            "scenario2-usage": "Scénario 2 - consommation de tokens affichée",
+            "scenario3-tools": "Scénario 3 - seul hub_repo_search a été donné à l'agent",
+            "scenario3": "Scénario 3 - modèles trouvés avec l'outil sélectionné",
+            "scenario3-usage": "Scénario 3 - consommation de tokens affichée",
+            "scenario4": "Scénario 4 - sur l'API Responses, modèles du Hub trouvés avec l'outil MCP local",
+            "scenario4-local-tool": "Scénario 4 - l'outil MCP a été exécuté par l'application, via son client MCP",
+            "scenario4-response-id": "Scénario 4 - l'agent a tourné sur l'API Responses (id resp_...)",
+            "scenario4-usage": "Scénario 4 - consommation de tokens affichée",
+            "scenario5": "Scénario 5 - modèles du Hub trouvés avec le serveur MCP hébergé",
+            "scenario5-listed": "Scénario 5 - le service a listé les outils du serveur MCP hébergé",
+            "scenario5-hosted-tool": "Scénario 5 - l'outil MCP a été exécuté par le service (MCP hébergé)",
+            "scenario5-usage": "Scénario 5 - consommation de tokens affichée"
+          }
+        }
+      }
+    },
+    {
+      "id": "azureopenai-lab05",
+      "number": "05",
+      "track": "Azure OpenAI",
+      "stage": "conversations",
+      "title": "AI Agent with Sessions",
+      "summary": "Hold multi-turn conversations in an AgentSession, save them and resume them later: chat history in the session, bounded by a chat reducer, then outside of the application with a custom ChatHistoryProvider. Bonus on the Responses API: let the service keep the conversation (previous_response_id), or keep it in your own storage with store = false. Scenarios 3 and 5 need a storage, chosen with Storage:Mode: the lab's MongoDB container (docker compose up -d), MongoDB started by the lab without Docker (EmbeddedMongoDb) or a JSON file (JsonFile).",
+      "level": "Intermediate",
+      "objectives": [
+        "Create a session with CreateSessionAsync() and run the agent in it",
+        "Save and resume a session with SerializeSessionAsync() and DeserializeSessionAsync()",
+        "Read the chat history kept by the default InMemoryChatHistoryProvider",
+        "Plug a custom ChatHistoryProvider with ChatClientAgentOptions.ChatHistoryProvider",
+        "Keep the per-session state of a provider in AgentSession.StateBag (ProviderSessionState<T>)",
+        "Bound the chat history with a chat reducer, and store it outside of the application (MongoDB or a JSON file)",
+        "Bonus: on the Responses API, let the service keep the conversation (ChatClientAgentSession.ConversationId, previous_response_id), check it and delete it",
+        "Bonus: keep the Responses API and your own persistence with AsIChatClientWithStoredOutputDisabled, and tell apart your business id, the session and the ids of the service"
+      ],
+      "path": "LearningLabs/AzureOpenAI/Lab05-AIAgentWithSessions",
+      "startProject": "Start/AIAgentWithSessions.csproj",
+      "solutionProject": "Solution/AIAgentWithSessions.csproj",
+      "timeoutSeconds": 300,
+      "storage": true,
+      "bonusScenarios": [4, 5],
+      "expectations": [
+        {
+          "id": "config",
+          "description": "Configuration loaded",
+          "pattern": "^Endpoint: \\S+"
+        },
+        {
+          "id": "scenario1-history",
+          "description": "Scenario 1 - the session keeps the two messages of the first run (user, assistant)",
+          "pattern": "(?i)\\b2\\b\\D{0,40}\\buser\\b\\W+assistant\\b"
+        },
+        {
+          "id": "scenario1-serialized",
+          "description": "Scenario 1 - the serialized session contains the messages of the InMemoryChatHistoryProvider",
+          "pattern": "(?is)^Serialized session:\\s*\\{\\s*\"stateBag\":\\s*\\{\\s*\"InMemoryChatHistoryProvider\":\\s*\\{\\s*\"messages\":\\s*\\["
+        },
+        {
+          "id": "scenario1-followup",
+          "description": "Scenario 1 - after the restore, the follow-up answer knows the city (Paris) and the name (Ada)",
+          "pattern": "(?im)^(?=[^\\n]*\\bParis\\b)(?=[^\\n]*\\bAda\\b)(?=[^\\n]*(?:million|\\d))"
+        },
+        {
+          "id": "scenario1-usage",
+          "description": "Scenario 1 - token usage displayed",
+          "pattern": "(?is)input tokens:?\\s*\\d+"
+        },
+        {
+          "id": "scenario2-bounded",
+          "description": "Scenario 2 - the chat reducer kept the history bounded: 2 messages after the first turn, never more than 4",
+          "pattern": "(?is)^Messages kept in the session: 2 \\(.*?^Messages kept in the session: 4 \\(.*?^Messages kept in the session: 4 \\("
+        },
+        {
+          "id": "scenario2-forgotten",
+          "description": "Scenario 2 - the last answer knows the city of the previous turn (Rome) but not the name given in the first turn",
+          "pattern": "(?im)^(?![^\\n]*\\bAda\\b)(?=[^\\n]*\\bRome\\b)(?=[^\\n]*(?:million|\\d))"
+        },
+        {
+          "id": "scenario2-usage",
+          "description": "Scenario 2 - token usage displayed",
+          "pattern": "(?is)input tokens:?\\s*\\d+"
+        },
+        {
+          "id": "scenario3-restart",
+          "description": "Scenario 3 - a new agent restored the session with the key saved in the serialized session",
+          "pattern": "(?is)\"sessionDbKey\":\\s*\"([0-9a-f]{32})\".*?^[^\\n\"]*\\b\\1\\b"
+        },
+        {
+          "id": "scenario3-followup",
+          "description": "Scenario 3 - the new agent, with the history from the storage, knows Paris and Ada",
+          "pattern": "(?im)^(?=[^\\n]*\\bParis\\b)(?=[^\\n]*\\bAda\\b)(?=[^\\n]*(?:million|\\d))"
+        },
+        {
+          "id": "scenario3-usage",
+          "description": "Scenario 3 - token usage displayed",
+          "pattern": "(?is)input tokens:?\\s*\\d+"
+        },
+        {
+          "id": "scenario4-serialized",
+          "description": "Scenario 4 - the serialized session holds the conversation id (resp_...)",
+          "pattern": "(?s)^Serialized session:\\s*\\{\\s*\\\"conversationId\\\":\\s*\\\"resp_[0-9A-Za-z]{10,}\\\""
+        },
+        {
+          "id": "scenario4-followup",
+          "description": "Scenario 4 - after the restore, the follow-up answer knows Paris and Ada (history kept by the service)",
+          "pattern": "(?im)^(?=[^\\n]*\\bParis\\b)(?=[^\\n]*\\bAda\\b)(?=[^\\n]*(?:million|\\d))"
+        },
+        {
+          "id": "scenario4-chained",
+          "description": "Scenario 4 - after the follow-up, the session points to a new response, kept by the service (previous_response_id)",
+          "pattern": "(?s)\\\"conversationId\\\":\\s*\\\"(resp_[0-9A-Za-z]+)\\\".*?^Response (?!\\1\\b)resp_[0-9A-Za-z]{10,} stored by the service: yes\\b"
+        },
+        {
+          "id": "scenario4-usage",
+          "description": "Scenario 4 - token usage displayed",
+          "pattern": "(?is)input tokens:?\\s*\\d+"
+        },
+        {
+          "id": "scenario5-not-stored",
+          "description": "Scenario 5 - with store = false, the service kept nothing (404)",
+          "pattern": "^Response resp_[0-9A-Za-z]{10,} stored by the service: no \\(404\\)"
+        },
+        {
+          "id": "scenario5-serialized",
+          "description": "Scenario 5 - the serialized session holds the key of your storage, no conversation id",
+          "pattern": "(?s)^Serialized session:\\s*\\{\\s*\\\"stateBag\\\":\\s*\\{\\s*\\\"PersistentChatHistoryProvider\\\":\\s*\\{\\s*\\\"sessionDbKey\\\":\\s*\\\"[0-9a-f]{32}\\\""
+        },
+        {
+          "id": "scenario5-restart",
+          "description": "Scenario 5 - a new agent restored the saved session, with the same chat history key",
+          "pattern": "(?s)\\\"sessionDbKey\\\":\\s*\\\"([0-9a-f]{32})\\\".*?^\\s*Chat history key \\([^\\n]*\\):\\s*\\1\\s*$"
+        },
+        {
+          "id": "scenario5-followup",
+          "description": "Scenario 5 - the new agent, with the history from your storage, knows Paris and Ada",
+          "pattern": "(?im)^(?=[^\\n]*\\bParis\\b)(?=[^\\n]*\\bAda\\b)(?=[^\\n]*(?:million|\\d))"
+        },
+        {
+          "id": "scenario5-identifiers",
+          "description": "Scenario 5 - the business id is yours, and the service keeps no conversation id",
+          "pattern": "(?s)^\\s*Business conversation id \\(your application\\): support-case-1042\\s*$.*^\\s*Service conversation id \\(ChatClientAgentSession\\.ConversationId\\): \\(none\\)\\s*$"
+        },
+        {
+          "id": "scenario5-usage",
+          "description": "Scenario 5 - token usage displayed",
+          "pattern": "(?is)input tokens:?\\s*\\d+"
+        }
+      ],
+      "translations": {
+        "fr": {
+          "track": "Azure OpenAI",
+          "title": "Agent IA avec sessions",
+          "level": "Intermédiaire",
+          "summary": "Menez des conversations multi-tours dans une AgentSession, sauvegardez-les et reprenez-les plus tard : historique dans la session, borné par un réducteur, puis hors de l'application avec un ChatHistoryProvider personnalisé. En bonus, sur l'API Responses : laissez le service conserver la conversation (previous_response_id), ou gardez-la dans votre propre stockage avec store = false. Les scénarios 3 et 5 nécessitent un stockage, choisi avec Storage:Mode : le conteneur MongoDB du lab (docker compose up -d), MongoDB démarré par le lab sans Docker (EmbeddedMongoDb) ou un fichier JSON (JsonFile).",
+          "objectives": [
+            "Créer une session avec CreateSessionAsync() et y exécuter l'agent",
+            "Sauvegarder et reprendre une session avec SerializeSessionAsync() et DeserializeSessionAsync()",
+            "Lire l'historique conservé par l'InMemoryChatHistoryProvider par défaut",
+            "Brancher un ChatHistoryProvider personnalisé avec ChatClientAgentOptions.ChatHistoryProvider",
+            "Conserver l'état par session d'un provider dans AgentSession.StateBag (ProviderSessionState<T>)",
+            "Borner l'historique avec un réducteur, et le stocker hors de l'application (MongoDB ou un fichier JSON)",
+            "Bonus : sur l'API Responses, laisser le service conserver la conversation (ChatClientAgentSession.ConversationId, previous_response_id), le vérifier et la supprimer",
+            "Bonus : garder l'API Responses et votre propre persistance avec AsIChatClientWithStoredOutputDisabled, et distinguer votre id métier, la session et les ids du service"
+          ],
+          "checks": {
+            "config": "Configuration chargée",
+            "scenario1-history": "Scénario 1 - la session contient les deux messages du premier run (user, assistant)",
+            "scenario1-serialized": "Scénario 1 - la session sérialisée contient les messages de l'InMemoryChatHistoryProvider",
+            "scenario1-followup": "Scénario 1 - après la restauration, la réponse de suivi connaît la ville (Paris) et le prénom (Ada)",
+            "scenario1-usage": "Scénario 1 - consommation de tokens affichée",
+            "scenario2-bounded": "Scénario 2 - le réducteur a borné l'historique : 2 messages après le premier tour, jamais plus de 4",
+            "scenario2-forgotten": "Scénario 2 - la dernière réponse connaît la ville du tour précédent (Rome) mais pas le nom donné au premier tour",
+            "scenario2-usage": "Scénario 2 - consommation de tokens affichée",
+            "scenario3-restart": "Scénario 3 - un nouvel agent a restauré la session avec la clé enregistrée dans la session sérialisée",
+            "scenario3-followup": "Scénario 3 - le nouvel agent, avec l'historique venu du stockage, connaît Paris et Ada",
+            "scenario3-usage": "Scénario 3 - consommation de tokens affichée",
+            "scenario4-serialized": "Scénario 4 - la session sérialisée contient l'id de conversation (resp_...)",
+            "scenario4-followup": "Scénario 4 - après la restauration, la réponse de suivi connaît Paris et Ada (historique conservé par le service)",
+            "scenario4-chained": "Scénario 4 - après la question de suivi, la session pointe vers une nouvelle réponse, conservée par le service (previous_response_id)",
+            "scenario4-usage": "Scénario 4 - consommation de tokens affichée",
+            "scenario5-not-stored": "Scénario 5 - avec store = false, le service n'a rien conservé (404)",
+            "scenario5-serialized": "Scénario 5 - la session sérialisée contient la clé de votre stockage, sans id de conversation",
+            "scenario5-restart": "Scénario 5 - un nouvel agent a restauré la session enregistrée, avec la même clé d'historique",
+            "scenario5-followup": "Scénario 5 - le nouvel agent, avec l'historique venu de votre stockage, connaît Paris et Ada",
+            "scenario5-identifiers": "Scénario 5 - l'id métier vous appartient, et le service ne conserve aucun id de conversation",
+            "scenario5-usage": "Scénario 5 - consommation de tokens affichée"
+          }
+        }
+      }
+    },
+    {
+      "id": "azureopenai-lab09",
+      "number": "09",
+      "track": "Azure OpenAI",
+      "stage": "conversations",
+      "title": "Control an Agent: Human Approval and Guardrails",
+      "summary": "Make an agent pause before a sensitive tool runs: wrap the tool in ApprovalRequiredAIFunction, read the approval requests from the response, answer them in the same session (a person at the console, then a policy with a reason) and see what the tools really returned. Then wrap the agent in an agent run middleware that blocks a forbidden request and masks personal data.",
+      "level": "Intermediate",
+      "objectives": [
+        "Mark a tool as requiring approval with ApprovalRequiredAIFunction",
+        "Read the ToolApprovalRequestContent items from response.Messages and show the function call to approve",
+        "Answer with CreateResponse(approved, reason) in a user ChatMessage and continue the run in the same AgentSession (approval binding)",
+        "Run the approval loop until the agent no longer asks, with a human decision or a policy decision",
+        "Read the tool results and the rejections from the response messages, and the token usage of the whole flow",
+        "Add guardrails with an agent run middleware: answer without calling the agent, mask personal data in the request and in the answer"
+      ],
+      "path": "LearningLabs/AzureOpenAI/Lab09-AIAgentWithFunctionToolsHumanApproval",
+      "startProject": "Start/AIAgentWithFunctionToolsHumanApproval.csproj",
+      "solutionProject": "Solution/AIAgentWithFunctionToolsHumanApproval.csproj",
+      "timeoutSeconds": 240,
+      "interactive": true,
+      "expectations": [
+        {
+          "id": "config",
+          "description": "Configuration loaded",
+          "pattern": "^Endpoint: \\S+"
+        },
+        {
+          "id": "scenario1-request",
+          "description": "Scenario 1 - the run paused with an approval request for delete_employee_data(employeeId=EMP001)",
+          "pattern": "(?is)^APPROVAL REQUIRED\\s*$.*?^\\s*Function: delete_employee_data\\s*$\\s*^\\s*Arguments: employeeId=EMP001\\s*$"
+        },
+        {
+          "id": "scenario1-approved",
+          "description": "Scenario 1 - the user approved (reply Y) and the tool was executed after the approval",
+          "pattern": "(?im)^Tool result \\(delete_employee_data\\): Sensitive operation executed: All data for employee 'EMP001' has been permanently deleted"
+        },
+        {
+          "id": "scenario1-usage",
+          "description": "Scenario 1 - token usage displayed",
+          "pattern": "(?is)input tokens:?\\s*\\d+"
+        },
+        {
+          "id": "scenario2-info",
+          "description": "Scenario 2 - get_employee_info ran for both employees without any approval request",
+          "pattern": "(?is)\\A(?=.*?^Tool result \\(get_employee_info\\): Employee EMP001: Alice Martin)(?=.*?^Tool result \\(get_employee_info\\): Employee EMP002: Bob Lee)(?!.*?^Approval requested for get_employee_info)"
+        },
+        {
+          "id": "scenario2-policy",
+          "description": "Scenario 2 - the policy approved the deletion of EMP001 (former employee) and rejected the deletion of EMP002 (still employed)",
+          "pattern": "(?is)\\A(?=.*\\bdelete_employee_data\\(employeeId=EMP001\\))(?=.*\\bEMP001 \\(Alice Martin\\) left the company on 2025-12-31\\.)(?=.*\\bdelete_employee_data\\(employeeId=EMP002\\))(?=.*\\bEMP002 \\(Bob Lee\\) is still employed)"
+        },
+        {
+          "id": "scenario2-executed",
+          "description": "Scenario 2 - the approved deletion (EMP001) was executed",
+          "pattern": "(?is)^Tool result \\(delete_employee_data\\): Sensitive operation executed: All data for employee 'EMP001' has been permanently deleted"
+        },
+        {
+          "id": "scenario2-rejected",
+          "description": "Scenario 2 - the rejected deletion (EMP002) was not executed: the model received the rejection and its reason",
+          "pattern": "(?is)\\A(?!.*?employee 'EMP002' has been permanently deleted).*?^Tool result \\(delete_employee_data\\): Tool call invocation rejected\\. EMP002 \\(Bob Lee\\) is still employed"
+        },
+        {
+          "id": "scenario2-usage",
+          "description": "Scenario 2 - token usage displayed",
+          "pattern": "(?is)input tokens:?\\s*\\d+"
+        },
+        {
+          "id": "scenario3-blocked",
+          "description": "Scenario 3 - the guardrail blocked the forbidden question: the model was not called",
+          "pattern": "(?is)\\A(?!(?:.*?\\binput\\s+tokens\\b[^\\n\\d]*[1-9]){2})(?=.*?\\bblock\\w*\\b[^\\n]*\\bsalar(?:y|ies)\\b)"
+        },
+        {
+          "id": "scenario3-masked",
+          "description": "Scenario 3 - the guardrail masked the e-mail and the phone number of the request before the agent saw them",
+          "pattern": "(?i)\\b2\\b[^\\n]*\\bmask"
+        },
+        {
+          "id": "scenario3-answer",
+          "description": "Scenario 3 - the answer gives the status of EMP001 and contains no personal data",
+          "pattern": "(?im)^(?=[^\\n]*\\bAlice\\b)(?![^\\n]*@)"
+        },
+        {
+          "id": "scenario3-usage",
+          "description": "Scenario 3 - token usage displayed",
+          "pattern": "(?is)input tokens:?\\s*\\d+"
+        }
+      ],
+      "translations": {
+        "fr": {
+          "track": "Azure OpenAI",
+          "title": "Contrôler un agent : approbation humaine et garde-fous",
+          "level": "Intermédiaire",
+          "summary": "Faites marquer une pause à un agent avant l'exécution d'un outil sensible : enveloppez l'outil dans ApprovalRequiredAIFunction, lisez les demandes d'approbation dans la réponse, répondez-y dans la même session (une personne à la console, puis une politique avec un motif) et voyez ce que les outils ont réellement renvoyé. Enveloppez ensuite l'agent dans un middleware d'exécution qui bloque une demande interdite et masque les données personnelles.",
+          "objectives": [
+            "Marquer un outil comme nécessitant une approbation avec ApprovalRequiredAIFunction",
+            "Lire les ToolApprovalRequestContent dans response.Messages et afficher l'appel de fonction à approuver",
+            "Répondre avec CreateResponse(approved, reason) dans un ChatMessage utilisateur et poursuivre le run dans la même AgentSession (liaison des approbations)",
+            "Exécuter la boucle d'approbation jusqu'à ce que l'agent ne demande plus rien, avec une décision humaine ou une décision de politique",
+            "Lire les résultats d'outils et les rejets dans les messages de la réponse, et la consommation de tokens de tout le flux",
+            "Ajouter des garde-fous avec un middleware d'exécution : répondre sans appeler l'agent, masquer les données personnelles de la requête et de la réponse"
+          ],
+          "checks": {
+            "config": "Configuration chargée",
+            "scenario1-request": "Scénario 1 - le run s'est arrêté avec une demande d'approbation pour delete_employee_data(employeeId=EMP001)",
+            "scenario1-approved": "Scénario 1 - l'utilisateur a approuvé (réponse Y) et l'outil a été exécuté après l'approbation",
+            "scenario1-usage": "Scénario 1 - consommation de tokens affichée",
+            "scenario2-info": "Scénario 2 - get_employee_info a été exécuté pour les deux employés sans aucune demande d'approbation",
+            "scenario2-policy": "Scénario 2 - la politique a approuvé la suppression d'EMP001 (ancien employé) et rejeté celle d'EMP002 (toujours employé)",
+            "scenario2-executed": "Scénario 2 - la suppression approuvée (EMP001) a été exécutée",
+            "scenario2-rejected": "Scénario 2 - la suppression rejetée (EMP002) n'a pas été exécutée : le modèle a reçu le rejet et son motif",
+            "scenario2-usage": "Scénario 2 - consommation de tokens affichée",
+            "scenario3-blocked": "Scénario 3 - le garde-fou a bloqué la question interdite : le modèle n'a pas été appelé",
+            "scenario3-masked": "Scénario 3 - le garde-fou a masqué l'e-mail et le numéro de téléphone de la requête avant que l'agent ne les voie",
+            "scenario3-answer": "Scénario 3 - la réponse donne le statut d'EMP001 et ne contient aucune donnée personnelle",
+            "scenario3-usage": "Scénario 3 - consommation de tokens affichée"
+          }
+        }
+      }
+    },
+    {
+      "id": "azureopenai-lab07",
+      "number": "07",
+      "track": "Azure OpenAI",
+      "stage": "knowledge",
+      "title": "Agentic RAG with a Vector Store",
+      "summary": "Answer customer questions from a FAQ instead of the model's knowledge: embed the FAQ into an in-memory vector store, search it by meaning, then give the search to an agent as a function tool (agentic RAG) and as a TextSearchProvider that runs before every model call. Bonus on the Responses API: keep your RAG with nothing stored by the service, then compare it with the hosted file search of the service.",
+      "level": "Intermediate",
+      "objectives": [
+        "Get an IEmbeddingGenerator from an Azure OpenAI embedding deployment",
+        "Describe vector store records with [VectorStoreKey], [VectorStoreData] and [VectorStoreVector], and let the store embed them",
+        "Fill and search a VectorStoreCollection (UpsertAsync, SearchAsync, VectorSearchResult<T>)",
+        "Expose a semantic search as a function tool of an agent (agentic RAG)",
+        "Add RAG to an agent with TextSearchProvider and ChatClientAgentOptions.AIContextProviders",
+        "Compare both approaches: tool calls, injected context, token usage",
+        "Treat the retrieved content as untrusted data (indirect prompt injection)",
+        "Bonus: keep your own vector store and search tool on the Responses API, without storage at the provider (store = false)",
+        "Bonus: use the hosted file search (files, vector store of the service, HostedFileSearchTool, citations) and compare it with your own RAG"
+      ],
+      "path": "LearningLabs/AzureOpenAI/Lab07-AgenticRAG-VectorStore",
+      "startProject": "Start/AgenticRAG.csproj",
+      "solutionProject": "Solution/AgenticRAG.csproj",
+      "timeoutSeconds": 300,
+      "bonusScenarios": [5, 6],
+      "expectations": [
+        {
+          "id": "config",
+          "description": "Configuration loaded",
+          "pattern": "^Endpoint: \\S+"
+        },
+        {
+          "id": "scenario1-indexed",
+          "description": "Scenario 1 - the 20 FAQ entries were loaded and indexed in the vector store",
+          "pattern": "(?is)\\A(?=.*\\b20\\b)(?=.*\\bsav-faq\\b(?!\\.json))"
+        },
+        {
+          "id": "scenario2-top-result",
+          "description": "Scenario 2 - the semantic search ranks the 'contact customer support' entry (faq-010) first for a question that shares no word with it",
+          "pattern": "(?is)\\A(?:(?!faq-\\d{3}).)*\\bfaq-010\\b[^\\n]*?-?\\d\\.\\d+"
+        },
+        {
+          "id": "scenario2-results",
+          "description": "Scenario 2 - three results were displayed with their scores",
+          "pattern": "(?is)^2\\. faq-\\d{3} \\(score -?\\d+\\.\\d+\\).*?^3\\. faq-\\d{3} \\(score -?\\d+\\.\\d+\\)"
+        },
+        {
+          "id": "scenario3-tool",
+          "description": "Scenario 3 - the agent called the search_faq tool with a question",
+          "pattern": "^Tool called: search_faq\\(question: \\S"
+        },
+        {
+          "id": "scenario3-answer",
+          "description": "Scenario 3 - the answer gives the 48-hour deadline that only the FAQ entry faq-005 contains",
+          "pattern": "(?i)\\b48\\s*hours\\b"
+        },
+        {
+          "id": "scenario3-usage",
+          "description": "Scenario 3 - token usage displayed",
+          "pattern": "(?is)input tokens:?\\s*\\d+"
+        },
+        {
+          "id": "scenario4-search",
+          "description": "Scenario 4 - the TextSearchProvider searched the first question and found the 'return a product' entry (faq-001)",
+          "pattern": "(?is)\\A(?:(?!\\[TextSearchProvider\\] Results).)*^\\[TextSearchProvider\\] Results: [^\\n]*\\bfaq-001\\b"
+        },
+        {
+          "id": "scenario4-answer",
+          "description": "Scenario 4 - the first answer gives the 30-day return window that only faq-001 contains",
+          "pattern": "(?i)\\b30\\s*days\\b"
+        },
+        {
+          "id": "scenario4-followup-search",
+          "description": "Scenario 4 - the follow-up question was searched together with the first one (RecentMessageMemoryLimit) and found the refund entry (faq-002)",
+          "pattern": "(?is)^\\[TextSearchProvider\\] Results:.*?^\\[TextSearchProvider\\] Search input: [^\\n]*\\|[^\\n]*$\\s*^\\[TextSearchProvider\\] Results: [^\\n]*\\bfaq-002\\b"
+        },
+        {
+          "id": "scenario4-followup-answer",
+          "description": "Scenario 4 - the follow-up answer gives the 5-7 business days of faq-002",
+          "pattern": "(?i)\\b5\\s*(?:-|–|to)\\s*7\\s+business days\\b"
+        },
+        {
+          "id": "scenario4-usage",
+          "description": "Scenario 4 - token usage displayed",
+          "pattern": "(?is)input tokens:?\\s*\\d+"
+        },
+        {
+          "id": "scenario5-tool",
+          "description": "Scenario 5 - on the Responses API, the agent called your search_faq tool",
+          "pattern": "^Tool called: search_faq\\(question: \\S"
+        },
+        {
+          "id": "scenario5-answer",
+          "description": "Scenario 5 - the answer comes from the FAQ (48 hours)",
+          "pattern": "(?i)\\b48\\s*hours\\b"
+        },
+        {
+          "id": "scenario5-not-stored",
+          "description": "Scenario 5 - with store = false, the service kept nothing (404)",
+          "pattern": "^Response resp_[0-9A-Za-z]{10,} stored by the service: no \\(404\\)"
+        },
+        {
+          "id": "scenario5-usage",
+          "description": "Scenario 5 - token usage displayed",
+          "pattern": "(?is)input tokens:?\\s*\\d+"
+        },
+        {
+          "id": "scenario6-indexed",
+          "description": "Scenario 6 - the 20 FAQ documents were indexed in a vector store of the service",
+          "pattern": "^Vector store of the service ready: vs_[0-9A-Za-z]+, 20 files"
+        },
+        {
+          "id": "scenario6-search",
+          "description": "Scenario 6 - the hosted file search ran and found faq-005",
+          "pattern": "(?s)^File search queries \\(written by the model\\): \\S.*?^\\d+\\. faq-005\\.md \\(score "
+        },
+        {
+          "id": "scenario6-citation",
+          "description": "Scenario 6 - the answer cites faq-005",
+          "pattern": "^Files cited in the answer: [^\\n]*\\bfaq-005\\.md\\b"
+        },
+        {
+          "id": "scenario6-answer",
+          "description": "Scenario 6 - the answer comes from the FAQ (48 hours)",
+          "pattern": "(?i)\\b48\\s*hours\\b"
+        },
+        {
+          "id": "scenario6-usage",
+          "description": "Scenario 6 - token usage displayed",
+          "pattern": "(?is)input tokens:?\\s*\\d+"
+        }
+      ],
+      "translations": {
+        "fr": {
+          "track": "Azure OpenAI",
+          "title": "RAG agentique avec un vector store",
+          "level": "Intermédiaire",
+          "summary": "Répondez aux questions des clients à partir d'une FAQ plutôt que des connaissances du modèle : vectorisez la FAQ dans un vector store en mémoire, cherchez-y par le sens, puis donnez la recherche à un agent comme function tool (RAG agentique) et comme TextSearchProvider exécuté avant chaque appel du modèle. En bonus, sur l'API Responses : gardez votre RAG sans stockage chez le fournisseur, puis comparez-le à la recherche de fichiers hébergée par le service.",
+          "objectives": [
+            "Obtenir un IEmbeddingGenerator à partir d'un déploiement d'embedding Azure OpenAI",
+            "Décrire les enregistrements d'un vector store avec [VectorStoreKey], [VectorStoreData] et [VectorStoreVector], et laisser le store les vectoriser",
+            "Remplir et interroger une VectorStoreCollection (UpsertAsync, SearchAsync, VectorSearchResult<T>)",
+            "Exposer une recherche sémantique comme function tool d'un agent (RAG agentique)",
+            "Ajouter du RAG à un agent avec TextSearchProvider et ChatClientAgentOptions.AIContextProviders",
+            "Comparer les deux approches : appels d'outil, contexte injecté, consommation de tokens",
+            "Traiter le contenu récupéré comme une donnée non fiable (injection de prompt indirecte)",
+            "Bonus : garder votre propre vector store et votre outil de recherche sur l'API Responses, sans stockage chez le fournisseur (store = false)",
+            "Bonus : utiliser la recherche de fichiers hébergée (fichiers, vector store du service, HostedFileSearchTool, citations) et la comparer à votre propre RAG"
+          ],
+          "checks": {
+            "config": "Configuration chargée",
+            "scenario1-indexed": "Scénario 1 - les 20 entrées de la FAQ ont été chargées et indexées dans le vector store",
+            "scenario2-top-result": "Scénario 2 - la recherche sémantique classe en premier l'entrée « contacter le support » (faq-010) pour une question qui n'a aucun mot en commun avec elle",
+            "scenario2-results": "Scénario 2 - trois résultats affichés avec leur score",
+            "scenario3-tool": "Scénario 3 - l'agent a appelé l'outil search_faq avec une question",
+            "scenario3-answer": "Scénario 3 - la réponse donne le délai de 48 heures que seule l'entrée faq-005 contient",
+            "scenario3-usage": "Scénario 3 - consommation de tokens affichée",
+            "scenario4-search": "Scénario 4 - le TextSearchProvider a cherché la première question et trouvé l'entrée « retourner un produit » (faq-001)",
+            "scenario4-answer": "Scénario 4 - la première réponse donne le délai de retour de 30 jours que seule faq-001 contient",
+            "scenario4-followup-search": "Scénario 4 - la question de suivi a été cherchée avec la première (RecentMessageMemoryLimit) et a trouvé l'entrée sur le remboursement (faq-002)",
+            "scenario4-followup-answer": "Scénario 4 - la réponse de suivi donne les 5 à 7 jours ouvrés de faq-002",
+            "scenario4-usage": "Scénario 4 - consommation de tokens affichée",
+            "scenario5-tool": "Scénario 5 - sur l'API Responses, l'agent a appelé votre outil search_faq",
+            "scenario5-answer": "Scénario 5 - la réponse vient de la FAQ (48 heures)",
+            "scenario5-not-stored": "Scénario 5 - avec store = false, le service n'a rien conservé (404)",
+            "scenario5-usage": "Scénario 5 - consommation de tokens affichée",
+            "scenario6-indexed": "Scénario 6 - les 20 documents de la FAQ ont été indexés dans un vector store du service",
+            "scenario6-search": "Scénario 6 - la recherche de fichiers hébergée a tourné et trouvé faq-005",
+            "scenario6-citation": "Scénario 6 - la réponse cite faq-005",
+            "scenario6-answer": "Scénario 6 - la réponse vient de la FAQ (48 heures)",
+            "scenario6-usage": "Scénario 6 - consommation de tokens affichée"
+          }
+        }
+      }
+    },
+    {
+      "id": "azureopenai-lab12",
+      "number": "12",
+      "track": "Azure OpenAI",
+      "stage": "knowledge",
+      "title": "AI Agent with an AI Context Provider",
+      "summary": "Give an agent a long-term memory of its user: a custom AIContextProvider adds the memories stored outside of the application (MongoDB or a JSON file) to each run, as a message framed as data (not as instructions), and extracts the new facts from the user message after it, with another agent and structured output. The memories follow the user from one session to another. Needs a storage, chosen with Storage:Mode: the lab's MongoDB container (docker compose up -d), MongoDB started by the lab without Docker (EmbeddedMongoDb) or a JSON file (JsonFile); scenario 2 is a chat that waits for your messages.",
+      "level": "Intermediate",
+      "objectives": [
+        "Write a custom AIContextProvider: ProvideAIContextAsync before the model call, StoreAIContextAsync after a successful run",
+        "Return additional context for a run with AIContext: a message framed as data, kept out of the chat history",
+        "Attach the provider to the agent with ChatClientAgentOptions.AIContextProviders (one instance shared by all the sessions)",
+        "Keep the per-session state of the provider (the user id) in the session with ProviderSessionState<T> and a state initializer",
+        "Extract facts from the user message with another agent and structured output (RunAsync<T>)",
+        "Store the memories per user (MongoDB or a JSON file) and find them again in a new session, and when the agent speaks first (RunAsync(session))"
+      ],
+      "path": "LearningLabs/AzureOpenAI/Lab12-AIAgentWithAIContextProvider",
+      "startProject": "Start/AIAgentWithAIContextProvider.csproj",
+      "solutionProject": "Solution/AIAgentWithAIContextProvider.csproj",
+      "timeoutSeconds": 240,
+      "storage": true,
+      "interactive": true,
+      "expectations": [
+        {
+          "id": "config",
+          "description": "Configuration loaded",
+          "pattern": "^Endpoint: \\S+"
+        },
+        {
+          "id": "scenario1-provide-empty",
+          "description": "Scenario 1 - after the memories of 'ada' were cleared, the provider ran before the first model call and found no memory",
+          "pattern": "(?im)^\\[Memory\\] No memory of user 'ada' yet: nothing added to the request\\s*$"
+        },
+        {
+          "id": "scenario1-extracted",
+          "description": "Scenario 1 - after the first run, the provider extracted new memories from the introduction, the name Ada included",
+          "pattern": "(?is)^\\[Memory\\] [1-9]\\d* memor(?:y|ies) extracted and stored for user 'ada' \\(extraction run: \\d+ tokens\\):\\s*$(?:(?!^Agent:).)*?^  \\+ [^\\n]*\\bAda\\b"
+        },
+        {
+          "id": "scenario1-stored",
+          "description": "Scenario 1 - the storage holds the memories of 'ada': her name and her vegetarian diet",
+          "pattern": "(?is)^Memories stored for user 'ada': [1-9]\\d*\\s*$(?=(?:\\s*^  - [^\\n]*$)*?\\s*^  - [^\\n]*\\bAda\\b)(?=(?:\\s*^  - [^\\n]*$)*?\\s*^  - [^\\n]*\\bvegetarian\\b)"
+        },
+        {
+          "id": "scenario1-recall",
+          "description": "Scenario 1 - in a new session (empty chat history), the provider added the memories and the answer uses them: the name Ada and one of her preferences (vegetarian, the Alps, Lyon)",
+          "pattern": "(?is)^\\[Memory\\] [1-9]\\d* memor(?:y|ies) of user 'ada' added to the request\\s*$(?=(?:(?!^Token Usage).)*?(?-i:\\bAda\\b))(?=(?:(?!^Token Usage).)*?\\b(?:vegetarian|tofu|Alps|Lyon)\\b)"
+        },
+        {
+          "id": "scenario1-usage",
+          "description": "Scenario 1 - token usage displayed",
+          "pattern": "(?is)input tokens:?\\s*\\d+"
+        },
+        {
+          "id": "scenario2-greeting",
+          "description": "Scenario 2 - the agent spoke first (RunAsync without a message): the provider added the memories, had nothing to extract, and the greeting uses the name Ada",
+          "pattern": "(?is)^\\[Memory\\] [1-9]\\d* memor(?:y|ies) of user 'ada' added to the request\\s*$\\s*^\\[Memory\\] No user message in this run: nothing to extract\\s*$\\s*^[^\\n]*(?-i:\\bAda\\b)"
+        }
+      ],
+      "translations": {
+        "fr": {
+          "track": "Azure OpenAI",
+          "title": "Agent IA avec un AI Context Provider",
+          "level": "Intermédiaire",
+          "summary": "Donnez à un agent une mémoire à long terme de son utilisateur : un AIContextProvider personnalisé ajoute à chaque run, sous forme de message présenté comme des données (et non d'instructions), les souvenirs stockés hors de l'application (MongoDB ou un fichier JSON), et extrait après le run les nouveaux faits du message de l'utilisateur, avec un autre agent et une sortie structurée. Les souvenirs suivent l'utilisateur d'une session à l'autre. Nécessite un stockage, choisi avec Storage:Mode : le conteneur MongoDB du lab (docker compose up -d), MongoDB démarré par le lab sans Docker (EmbeddedMongoDb) ou un fichier JSON (JsonFile) ; le scénario 2 est une conversation qui attend vos messages.",
+          "objectives": [
+            "Écrire un AIContextProvider personnalisé : ProvideAIContextAsync avant l'appel du modèle, StoreAIContextAsync après un run réussi",
+            "Renvoyer du contexte supplémentaire pour un run avec AIContext : un message présenté comme des données, tenu hors de l'historique",
+            "Brancher le provider sur l'agent avec ChatClientAgentOptions.AIContextProviders (une instance partagée par toutes les sessions)",
+            "Conserver l'état par session du provider (l'id de l'utilisateur) dans la session avec ProviderSessionState<T> et un initialiseur d'état",
+            "Extraire des faits du message de l'utilisateur avec un autre agent et une sortie structurée (RunAsync<T>)",
+            "Stocker les souvenirs par utilisateur (MongoDB ou un fichier JSON) et les retrouver dans une nouvelle session, et quand l'agent parle en premier (RunAsync(session))"
+          ],
+          "checks": {
+            "config": "Configuration chargée",
+            "scenario1-provide-empty": "Scénario 1 - après l'effacement des souvenirs de 'ada', le provider s'est exécuté avant le premier appel du modèle et n'a trouvé aucun souvenir",
+            "scenario1-extracted": "Scénario 1 - après le premier run, le provider a extrait de la présentation de nouveaux souvenirs, dont le prénom Ada",
+            "scenario1-stored": "Scénario 1 - le stockage contient les souvenirs de 'ada' : son prénom et son régime végétarien",
+            "scenario1-recall": "Scénario 1 - dans une nouvelle session (historique vide), le provider a ajouté les souvenirs et la réponse les utilise : le prénom Ada et l'une de ses préférences (végétarienne, les Alpes, Lyon)",
+            "scenario1-usage": "Scénario 1 - consommation de tokens affichée",
+            "scenario2-greeting": "Scénario 2 - l'agent a parlé en premier (RunAsync sans message) : le provider a ajouté les souvenirs, n'avait rien à extraire, et l'accueil utilise le prénom Ada"
+          }
+        }
+      }
+    },
+    {
+      "id": "azureopenai-lab15",
+      "number": "15",
+      "track": "Azure OpenAI",
+      "stage": "knowledge",
+      "title": "Give an Agent Skills",
+      "summary": "Package expertise as Agent Skills: SKILL.md files with instructions and reference documents, and skills defined in code with resources and an in-process script. The agent sees only their names and descriptions and loads them on demand; you control which skill tools may run with approvals and a policy.",
+      "level": "Intermediate",
+      "objectives": [
+        "Write a skill as a SKILL.md file (frontmatter, instructions, resources) and give it to an agent with AgentSkillsProvider",
+        "Watch progressive disclosure: advertise, load_skill, read_skill_resource, run_skill_script",
+        "Define a skill in code with AgentInlineSkill: static and dynamic resources, an in-process script",
+        "Control the skill tools with UseToolApproval: auto-approve the read-only tools, decide on scripts with a policy",
+        "Choose between a tool, a skill and a workflow, and treat third-party skills like third-party code"
+      ],
+      "path": "LearningLabs/AzureOpenAI/Lab15-AIAgentWithSkills",
+      "startProject": "Start/AIAgentWithSkills.csproj",
+      "solutionProject": "Solution/AIAgentWithSkills.csproj",
+      "timeoutSeconds": 300,
+      "expectations": [
+        {
+          "id": "config",
+          "description": "Configuration loaded",
+          "pattern": "^Endpoint: \\S+"
+        },
+        {
+          "id": "scenario1-advertised",
+          "description": "Scenario 1 - both file-based skills were found and advertised (name and description)",
+          "pattern": "(?s)\\A(?=.*?^Skill advertised: expense-policy - \\S)(?=.*?^Skill advertised: it-support - \\S)"
+        },
+        {
+          "id": "scenario1-load",
+          "description": "Scenario 1 - the agent loaded the expense-policy skill for the expense question",
+          "pattern": "(?s)^\\[Skill\\] load_skill\\(skillName: expense-policy\\) -> "
+        },
+        {
+          "id": "scenario1-resource",
+          "description": "Scenario 1 - the agent read the resource references/limits.md and answered with its limit (145)",
+          "pattern": "(?s)^\\[Skill\\] read_skill_resource\\(skillName: expense-policy, resourceName: references/limits\\.md\\) -> .*?^(?!\\[Skill\\])[^\\n]*\\b145\\b"
+        },
+        {
+          "id": "scenario1-no-skill",
+          "description": "Scenario 1 - no skill tool ran for the question that no skill covers",
+          "pattern": "(?is)(?:\\A|^\\[Skill\\][^\\n]*\\n)(?:(?!^\\[Skill\\]).)*?^(?![^\\n]*\\bRome\\b)[^\\n]*\\S[^\\n]*\\n(?:(?!^\\[Skill\\]).)*?\\bRome\\b"
+        },
+        {
+          "id": "scenario2-dynamic",
+          "description": "Scenario 2 - the dynamic resource was computed when read (validity date)",
+          "pattern": "(?s)^\\[Skill\\] read_skill_resource\\(skillName: shipping-quote, resourceName: validity\\) -> Quotes made today are valid until \\d{4}-\\d{2}-\\d{2}"
+        },
+        {
+          "id": "scenario2-script",
+          "description": "Scenario 2 - the in-process script ran and the answer gave its quote id",
+          "pattern": "(?s)^\\[Skill\\] run_skill_script\\(skillName: shipping-quote, scriptName: quote, [^\\n]*-> \\{\"quoteId\":\"(QT-[A-C]\\d+-\\d{3})\"[^\\n]*\\n.*?^(?!\\[Skill\\])[^\\n]*\\1"
+        },
+        {
+          "id": "scenario3-default",
+          "description": "Scenario 3 - without auto-approval, the first skill tool call waited for an approval",
+          "pattern": "(?is)\\A(?:(?!^\\[Skill\\]).)*?^(?!\\[Skill\\])[^\\n]*\\bload_skill\\("
+        },
+        {
+          "id": "scenario3-approved",
+          "description": "Scenario 3 - the policy approved the script for 2.5 kg, which then ran",
+          "pattern": "(?is)^[^\\n]*\\bParcel of 2\\.5 kg\\b[^\\n]*\\n\\[Skill\\] run_skill_script\\([^\\n]*-> \\{\"quoteId\":\"QT-"
+        },
+        {
+          "id": "scenario3-rejected",
+          "description": "Scenario 3 - the policy rejected the script for 120 kg, which never ran",
+          "pattern": "(?is)^[^\\n]*\\bParcel of 120 kg: over the 30 kg limit\\b(?:(?!^\\[Skill\\] run_skill_script).)*\\z"
+        }
+      ],
+      "translations": {
+        "fr": {
+          "track": "Azure OpenAI",
+          "title": "Donner des skills à un agent",
+          "level": "Intermédiaire",
+          "summary": "Empaquetez une expertise sous forme d'Agent Skills : des fichiers SKILL.md avec instructions et documents de référence, et des skills définies en code avec ressources et script exécuté dans le programme. L'agent ne voit que leurs noms et descriptions et les charge à la demande ; vous contrôlez quels outils de skill peuvent s'exécuter avec des approbations et une politique.",
+          "objectives": [
+            "Écrire une skill sous forme de fichier SKILL.md (frontmatter, instructions, ressources) et la donner à un agent avec AgentSkillsProvider",
+            "Observer la divulgation progressive : annonce, load_skill, read_skill_resource, run_skill_script",
+            "Définir une skill en code avec AgentInlineSkill : ressources statiques et dynamiques, script exécuté dans le programme",
+            "Contrôler les outils de skill avec UseToolApproval : approuver automatiquement les outils en lecture seule, décider des scripts avec une politique",
+            "Choisir entre un outil, une skill et un workflow, et traiter les skills de tiers comme du code tiers"
+          ],
+          "checks": {
+            "config": "Configuration chargée",
+            "scenario1-advertised": "Scénario 1 - les deux skills en fichiers ont été trouvées et annoncées (nom et description)",
+            "scenario1-load": "Scénario 1 - l'agent a chargé la skill expense-policy pour la question de dépenses",
+            "scenario1-resource": "Scénario 1 - l'agent a lu la ressource references/limits.md et répondu avec son plafond (145)",
+            "scenario1-no-skill": "Scénario 1 - aucun outil de skill n'a été exécuté pour la question qu'aucune skill ne couvre",
+            "scenario2-dynamic": "Scénario 2 - la ressource dynamique a été calculée à la lecture (date de validité)",
+            "scenario2-script": "Scénario 2 - le script exécuté dans le programme a tourné et la réponse a donné son identifiant de devis",
+            "scenario3-default": "Scénario 3 - sans approbation automatique, le premier appel d'outil de skill a attendu une approbation",
+            "scenario3-approved": "Scénario 3 - la politique a approuvé le script pour 2,5 kg, qui a ensuite été exécuté",
+            "scenario3-rejected": "Scénario 3 - la politique a rejeté le script pour 120 kg, qui n'a jamais été exécuté"
+          }
+        }
+      }
+    },
+    {
+      "id": "multiagent-lab01",
+      "number": "01",
+      "track": "Multi-Agent System",
+      "stage": "multi-agent",
+      "title": "Delegate a Task to Another Agent",
+      "summary": "Make agents work together: delegate by code to a reviewer agent and decide with its typed review, let a front desk agent delegate to specialist agents turned into tools, and keep the context of a specialist with a session.",
+      "level": "Intermediate",
+      "objectives": [
+        "Delegate by code: call another agent directly with RunAsync<T> and decide with its typed result",
+        "Check a result returned by a model before the code uses it",
+        "Delegate by the model: turn agents into tools with AsAIFunction(new AIFunctionFactoryOptions { Name, Description })",
+        "Read the delegations of a run: the query written by the model and the text returned",
+        "Keep the context of a specialist across calls with AsAIFunction(session: ...)",
+        "Know the limits of an agent used as a tool: single query, text only, hidden token usage, approvals that do not come back"
+      ],
+      "path": "LearningLabs/MultiAgentSystem/Lab01-UseAgentAsTool",
+      "startProject": "Start/UseAgentAsTool.csproj",
+      "solutionProject": "Solution/UseAgentAsTool.csproj",
+      "timeoutSeconds": 240,
+      "expectations": [
+        {
+          "id": "config",
+          "description": "Configuration loaded",
+          "pattern": "^Endpoint: \\S+"
+        },
+        {
+          "id": "scenario1-answer",
+          "description": "Scenario 1 - the after-sales expert answered the customer",
+          "pattern": "(?s)^AfterSalesExpert: \\S"
+        },
+        {
+          "id": "scenario1-approved",
+          "description": "Scenario 1 - the reviewer scored the answer of the expert and the code sent it to the customer",
+          "pattern": "(?is)\\A(?:(?!^Quality review:).)*^Quality review: (?:[7-9]|10)/10\\b(?:(?!^Quality review:).)*?^(?!\\s+Feedback:)[^\\n]*\\bsent\\b"
+        },
+        {
+          "id": "scenario1-held-back",
+          "description": "Scenario 1 - the wrong answer written by hand was held back by the decision of the code",
+          "pattern": "(?is)\\A(?:(?!^Quality review:).)*^Quality review:[^\\n]*\\n(?:(?!^Quality review:).)*^Quality review: [1-6]/10\\b(?:(?!^Quality review:).)*?^(?!\\s+Feedback:)[^\\n]*\\b(?:held|hold|human)\\b"
+        },
+        {
+          "id": "scenario1-usage",
+          "description": "Scenario 1 - token usage of each agent displayed",
+          "pattern": "(?is)\\bAfterSalesExpert\\b[^\\n]*\\n\\s*input tokens:?\\s*\\d+.*?\\bQualityReviewer\\b[^\\n]*\\n\\s*input tokens:?\\s*\\d+"
+        },
+        {
+          "id": "scenario2-tool-schema",
+          "description": "Scenario 2 - an agent turned into a tool takes a single query parameter",
+          "pattern": "^Tool ask_order_specialist: \\S[^\\n]*\\n\\s*Parameters: \\{[^\\n]*\\\"properties\\\":\\{\\\"query\\\":\\{[^{}]*\\}\\}"
+        },
+        {
+          "id": "scenario2-order",
+          "description": "Scenario 2 - the front desk asked the order specialist with a query that contains the order number",
+          "pattern": "(?im)^\\[Delegation\\] ask_order_specialist(?! returned)[^\\n]*\\bORD-1042\\b"
+        },
+        {
+          "id": "scenario2-after-sales",
+          "description": "Scenario 2 - the front desk asked the after-sales expert, who returned a text",
+          "pattern": "^\\[Delegation\\] ask_after_sales_expert returned: \\S"
+        },
+        {
+          "id": "scenario2-answer",
+          "description": "Scenario 2 - the front desk answered with the options given by the rules (replacement or refund)",
+          "pattern": "(?s)^FrontDesk: .*?(?i:replacement|refund)"
+        },
+        {
+          "id": "scenario2-usage",
+          "description": "Scenario 2 - token usage of the front desk displayed",
+          "pattern": "(?i)\\binput tokens:?\\s*\\d+"
+        },
+        {
+          "id": "scenario3-tool",
+          "description": "Scenario 3 - without options, the tool takes the name and the description of the agent",
+          "pattern": "^Tool TicketSpecialist: Keeps the support ticket"
+        },
+        {
+          "id": "scenario3-without-session",
+          "description": "Scenario 3 - with a new session for each call, the ticket lost the order number given in the first call",
+          "pattern": "^Ticket after the second call - a new session for each call:\\n(?:  [^\\n]*\\n)*?  -> Order number of the first call \\(ORD-1042\\) kept: no$"
+        },
+        {
+          "id": "scenario3-with-session",
+          "description": "Scenario 3 - with one session for every call, the ticket kept the order number given in the first call",
+          "pattern": "^Ticket after the second call - one session for every call:\\n(?:  [^\\n]*\\n)*?  -> Order number of the first call \\(ORD-1042\\) kept: yes$"
+        }
+      ],
+      "translations": {
+        "fr": {
+          "track": "Système multi-agents",
+          "title": "Confier une tâche à un autre agent",
+          "level": "Intermédiaire",
+          "summary": "Faites travailler des agents ensemble : déléguez par le code à un agent relecteur et décidez avec sa revue typée, laissez un agent d'accueil déléguer à des agents spécialistes transformés en outils, et gardez le contexte d'un spécialiste avec une session.",
+          "objectives": [
+            "Déléguer par le code : appeler directement un autre agent avec RunAsync<T> et décider avec son résultat typé",
+            "Vérifier un résultat renvoyé par un modèle avant que le code ne l'utilise",
+            "Déléguer par le modèle : transformer des agents en outils avec AsAIFunction(new AIFunctionFactoryOptions { Name, Description })",
+            "Lire les délégations d'une exécution : la requête écrite par le modèle et le texte renvoyé",
+            "Garder le contexte d'un spécialiste d'un appel à l'autre avec AsAIFunction(session: ...)",
+            "Connaître les limites d'un agent utilisé comme outil : une seule requête, du texte seulement, tokens invisibles, approbations qui ne remontent pas"
+          ],
+          "checks": {
+            "config": "Configuration chargée",
+            "scenario1-answer": "Scénario 1 - l'expert après-vente a répondu au client",
+            "scenario1-approved": "Scénario 1 - le relecteur a noté la réponse de l'expert et le code l'a envoyée au client",
+            "scenario1-held-back": "Scénario 1 - la réponse fausse écrite à la main a été retenue par la décision du code",
+            "scenario1-usage": "Scénario 1 - consommation de tokens de chaque agent affichée",
+            "scenario2-tool-schema": "Scénario 2 - un agent transformé en outil prend un seul paramètre query",
+            "scenario2-order": "Scénario 2 - l'accueil a interrogé le spécialiste des commandes avec une requête qui contient le numéro de commande",
+            "scenario2-after-sales": "Scénario 2 - l'accueil a interrogé l'expert après-vente, qui a renvoyé un texte",
+            "scenario2-answer": "Scénario 2 - l'accueil a répondu avec les options prévues par les règles (remplacement ou remboursement)",
+            "scenario2-usage": "Scénario 2 - consommation de tokens de l'accueil affichée",
+            "scenario3-tool": "Scénario 3 - sans options, l'outil reprend le nom et la description de l'agent",
+            "scenario3-without-session": "Scénario 3 - avec une nouvelle session à chaque appel, le ticket a perdu le numéro de commande donné au premier appel",
+            "scenario3-with-session": "Scénario 3 - avec une seule session pour tous les appels, le ticket a gardé le numéro de commande donné au premier appel"
+          }
+        }
+      }
+    },
+    {
+      "id": "multiagent-lab02",
+      "number": "02",
+      "track": "Multi-Agent System",
+      "stage": "multi-agent",
+      "title": "Sequential Orchestration: a Pipeline of Agents",
+      "summary": "Chain agents in a sequential workflow: build it with AgentWorkflowBuilder.BuildSequential, run it and follow its events, control the context each agent receives, and pause the pipeline until a tool call is approved.",
+      "level": "Intermediate",
+      "objectives": [
+        "Build a sequential workflow of agents with AgentWorkflowBuilder.BuildSequential",
+        "Run it with InProcessExecution.RunStreamingAsync and a TurnToken, and read its output from the WorkflowOutputEvent",
+        "Handle the errors of a run: ExecutorFailedEvent and WorkflowErrorEvent",
+        "Follow a run with its events: ExecutorInvokedEvent, AgentResponseUpdateEvent and the token usage of each agent",
+        "Choose the context passed between agents: the whole conversation (default) or the previous agent only (chainOnlyAgentResponses)",
+        "Pause the pipeline on a tool that requires an approval (RequestInfoEvent) and resume it with SendResponseAsync"
+      ],
+      "path": "LearningLabs/MultiAgentSystem/Lab02_OrchestrationSequential",
+      "startProject": "Start/OrchestrationSequential.csproj",
+      "solutionProject": "Solution/OrchestrationSequential.csproj",
+      "timeoutSeconds": 300,
+      "expectations": [
+        {
+          "id": "config",
+          "description": "Configuration loaded",
+          "pattern": "^Endpoint: \\S+"
+        },
+        {
+          "id": "scenario1-pipeline",
+          "description": "Scenario 1 - the sequential workflow runs the summarizer, then the action items extractor, then the output executor",
+          "pattern": "^Workflow meeting-notes: MeetingSummarizer -> ActionItemsExtractor -> OutputMessages$"
+        },
+        {
+          "id": "scenario1-output",
+          "description": "Scenario 1 - the output of the workflow is the conversation: the transcript, then the message of each agent in order",
+          "pattern": "(?s)^Workflow meeting-notes: .*?^Workflow output \\(3 messages\\):\\n  \\[user\\] \\(input\\): Meeting Transcript[^\\n]*\\n  \\[assistant\\] MeetingSummarizer: \\S.*?^  \\[assistant\\] ActionItemsExtractor: 1\\. \\S"
+        },
+        {
+          "id": "scenario2-full-context",
+          "description": "Scenario 2 - by default, the last agent received the whole conversation: the input and the messages of the two previous agents",
+          "pattern": "^\\[Context\\] Translator received 3 messages: user, ActionItemsExtractor, FollowUpWriter$"
+        },
+        {
+          "id": "scenario2-full-output",
+          "description": "Scenario 2 - by default, the output of the workflow contains the whole conversation",
+          "pattern": "^Workflow output \\(4 messages\\): user, ActionItemsExtractor, FollowUpWriter, Translator$"
+        },
+        {
+          "id": "scenario2-chained-context",
+          "description": "Scenario 2 - with chainOnlyAgentResponses, each agent received only the messages of the previous agent",
+          "pattern": "^\\[Context\\] FollowUpWriter received 1 message: ActionItemsExtractor\\n(?:[^\\n]*\\n){4}\\[Context\\] Translator received 1 message: FollowUpWriter$"
+        },
+        {
+          "id": "scenario2-chained-output",
+          "description": "Scenario 2 - with chainOnlyAgentResponses, the output of the workflow contains only the messages of the last agent",
+          "pattern": "^Workflow output \\(1 message\\): Translator$"
+        },
+        {
+          "id": "scenario2-translation",
+          "description": "Scenario 2 - the last agent translated the follow-up email into French",
+          "pattern": "(?s)^Translator:\\n.*?(?i:\\b(?:objet|cordialement|équipe|réunion)\\b)"
+        },
+        {
+          "id": "scenario2-usage",
+          "description": "Scenario 2 - token usage of each agent displayed, for the two runs",
+          "pattern": "(?s)Token Usage \\(Translator\\):\\n\\s*Input tokens: \\d+.*?Token Usage \\(Translator\\):\\n\\s*Input tokens: \\d+"
+        },
+        {
+          "id": "scenario3-pipeline",
+          "description": "Scenario 3 - the sender is the last step of the pipeline",
+          "pattern": "^Workflow meeting-minutes: ActionItemsExtractor -> FollowUpWriter -> MinutesSender -> OutputMessages$"
+        },
+        {
+          "id": "scenario3-paused",
+          "description": "Scenario 3 - the call of send_email waited for an approval, and the run paused for it",
+          "pattern": "^\\[Approval\\] send_email\\(to: \"[^\"\\n]+\"[^\\n]*\\) waits for an approval\\nRun status: PendingRequests$"
+        },
+        {
+          "id": "scenario3-sent",
+          "description": "Scenario 3 - once approved, the workflow resumed and the email was sent",
+          "pattern": "(?s)^\\[Approval\\] send_email: approved$.*?^  \\[tool\\] MinutesSender: \\(result: Email sent to "
+        },
+        {
+          "id": "scenario3-done",
+          "description": "Scenario 3 - the run has nothing left to do after the output",
+          "pattern": "(?s)\\(result: Email sent to .*?^Run status: Idle$"
+        }
+      ],
+      "translations": {
+        "fr": {
+          "track": "Système multi-agents",
+          "title": "Orchestration séquentielle : un pipeline d'agents",
+          "level": "Intermédiaire",
+          "summary": "Enchaînez des agents dans un workflow séquentiel : construisez-le avec AgentWorkflowBuilder.BuildSequential, exécutez-le et suivez ses événements, choisissez le contexte que reçoit chaque agent, et mettez le pipeline en pause jusqu'à l'approbation d'un appel d'outil.",
+          "objectives": [
+            "Construire un workflow séquentiel d'agents avec AgentWorkflowBuilder.BuildSequential",
+            "L'exécuter avec InProcessExecution.RunStreamingAsync et un TurnToken, et lire sa sortie dans le WorkflowOutputEvent",
+            "Traiter les erreurs d'une exécution : ExecutorFailedEvent et WorkflowErrorEvent",
+            "Suivre une exécution par ses événements : ExecutorInvokedEvent, AgentResponseUpdateEvent et la consommation de tokens de chaque agent",
+            "Choisir le contexte transmis entre agents : toute la conversation (par défaut) ou l'agent précédent seulement (chainOnlyAgentResponses)",
+            "Mettre le pipeline en pause sur un outil soumis à approbation (RequestInfoEvent) et le reprendre avec SendResponseAsync"
+          ],
+          "checks": {
+            "config": "Configuration chargée",
+            "scenario1-pipeline": "Scénario 1 - le workflow séquentiel exécute le résumeur, puis l'extracteur d'actions, puis l'exécuteur de sortie",
+            "scenario1-output": "Scénario 1 - la sortie du workflow est la conversation : la transcription, puis le message de chaque agent dans l'ordre",
+            "scenario2-full-context": "Scénario 2 - par défaut, le dernier agent a reçu toute la conversation : l'entrée et les messages des deux agents précédents",
+            "scenario2-full-output": "Scénario 2 - par défaut, la sortie du workflow contient toute la conversation",
+            "scenario2-chained-context": "Scénario 2 - avec chainOnlyAgentResponses, chaque agent n'a reçu que les messages de l'agent précédent",
+            "scenario2-chained-output": "Scénario 2 - avec chainOnlyAgentResponses, la sortie du workflow ne contient que les messages du dernier agent",
+            "scenario2-translation": "Scénario 2 - le dernier agent a traduit l'e-mail de suivi en français",
+            "scenario2-usage": "Scénario 2 - consommation de tokens de chaque agent affichée, pour les deux exécutions",
+            "scenario3-pipeline": "Scénario 3 - l'expéditeur est la dernière étape du pipeline",
+            "scenario3-paused": "Scénario 3 - l'appel de send_email a attendu une approbation, et l'exécution s'est mise en pause",
+            "scenario3-sent": "Scénario 3 - une fois approuvé, le workflow a repris et l'e-mail a été envoyé",
+            "scenario3-done": "Scénario 3 - l'exécution n'a plus rien à faire après la sortie"
+          }
+        }
+      }
+    },
+    {
+      "id": "multiagent-lab03",
+      "number": "03",
+      "track": "Multi-Agent System",
+      "stage": "multi-agent",
+      "title": "Concurrent Orchestration: Agents in Parallel",
+      "summary": "Run agents in parallel on the same input with AgentWorkflowBuilder.BuildConcurrent: read the aggregated answers, measure the time saved and what each agent receives, then combine the answers with your own aggregator and a reply writer.",
+      "level": "Intermediate",
+      "objectives": [
+        "Build a concurrent workflow of agents with AgentWorkflowBuilder.BuildConcurrent: fan-out to every agent, fan-in to an aggregator",
+        "Run it with InProcessExecution.RunStreamingAsync and a TurnToken, and read the aggregated output (one answer per agent)",
+        "Handle the errors of a run: one failing agent stops the whole workflow",
+        "Show with the events that the agents work at the same time, each with the input only, and measure their time and cost",
+        "Write a custom aggregator: one list per agent, in the order they finished, turned into the output you need",
+        "Combine the independent answers into one reply with an agent that runs once they have all answered"
+      ],
+      "path": "LearningLabs/MultiAgentSystem/Lab03_OrchestrationConcurrent",
+      "startProject": "Start/OrchestrationConcurrent.csproj",
+      "solutionProject": "Solution/OrchestrationConcurrent.csproj",
+      "timeoutSeconds": 240,
+      "expectations": [
+        {
+          "id": "config",
+          "description": "Configuration loaded",
+          "pattern": "^Endpoint: \\S+"
+        },
+        {
+          "id": "scenario1-graph",
+          "description": "Scenario 1 - the concurrent workflow fans out from Start to the three specialists, then fans in to ConcurrentEnd",
+          "pattern": "^Workflow after-sales: Start -> \\[ReturnsSpecialist \\| RefundSpecialist \\| ShippingSpecialist\\] -> \\[Batcher/ReturnsSpecialist \\| Batcher/RefundSpecialist \\| Batcher/ShippingSpecialist\\] -> ConcurrentEnd$"
+        },
+        {
+          "id": "scenario1-output",
+          "description": "Scenario 1 - the aggregated output contains one answer per specialist, and not the input",
+          "pattern": "^Workflow output \\(3 messages\\):\\n  \\[assistant\\] (\\w+Specialist): [^\\n]*\\n(?:      [^\\n]*\\n)*  \\[assistant\\] (?!\\1:)(\\w+Specialist): [^\\n]*\\n(?:      [^\\n]*\\n)*  \\[assistant\\] (?!\\1:)(?!\\2:)\\w+Specialist: "
+        },
+        {
+          "id": "scenario2-context",
+          "description": "Scenario 2 - each specialist received only the customer message: the agents do not see each other's answers",
+          "pattern": "(?s)(?=.*^\\[Context\\] ReturnsSpecialist received 1 message: user$)(?=.*^\\[Context\\] RefundSpecialist received 1 message: user$)(?=.*^\\[Context\\] ShippingSpecialist received 1 message: user$)"
+        },
+        {
+          "id": "scenario2-parallel",
+          "description": "Scenario 2 - the turns of the agents overlapped: they worked at the same time",
+          "pattern": "^\\[Timing\\] All the agents worked at the same time: yes$"
+        },
+        {
+          "id": "scenario2-usage",
+          "description": "Scenario 2 - token usage of each specialist displayed",
+          "pattern": "(?s)(?:Token Usage \\((?:Returns|Refund|Shipping)Specialist\\):\\n\\s*Input tokens: \\d+.*?){3}"
+        },
+        {
+          "id": "scenario2-order",
+          "description": "Scenario 2 - the output lists the three answers in the order they arrived",
+          "pattern": "^Workflow output \\(3 messages, in the order they arrived\\): \\w+Specialist, \\w+Specialist, \\w+Specialist$"
+        },
+        {
+          "id": "scenario3-merged",
+          "description": "Scenario 3 - the custom aggregator merged the three answers into one message, in the order of the specialists",
+          "pattern": "(?s)^Workflow output \\(1 message\\):\\n  \\[user\\] Specialists: [^\\n]*\\n.*?^      ReturnsSpecialist: .*?^      RefundSpecialist: .*?^      ShippingSpecialist: "
+        },
+        {
+          "id": "scenario3-reply",
+          "description": "Scenario 3 - the reply writer answered the customer about the missing charger, with its token usage",
+          "pattern": "(?s)^ReplyWriter: .*?(?i:charger).*?^Token Usage \\(ReplyWriter\\):\\n\\s*Input tokens: \\d+"
+        }
+      ],
+      "translations": {
+        "fr": {
+          "track": "Système multi-agents",
+          "title": "Orchestration concurrente : des agents en parallèle",
+          "level": "Intermédiaire",
+          "summary": "Faites travailler des agents en parallèle sur la même entrée avec AgentWorkflowBuilder.BuildConcurrent : lisez les réponses agrégées, mesurez le temps gagné et ce que reçoit chaque agent, puis combinez les réponses avec votre propre agrégateur et un agent rédacteur.",
+          "objectives": [
+            "Construire un workflow concurrent d'agents avec AgentWorkflowBuilder.BuildConcurrent : diffusion vers chaque agent, regroupement vers un agrégateur",
+            "L'exécuter avec InProcessExecution.RunStreamingAsync et un TurnToken, et lire la sortie agrégée (une réponse par agent)",
+            "Traiter les erreurs d'une exécution : un seul agent en échec arrête tout le workflow",
+            "Montrer avec les événements que les agents travaillent en même temps, chacun avec la seule entrée, et mesurer leur temps et leur coût",
+            "Écrire un agrégateur personnalisé : une liste par agent, dans l'ordre où ils ont fini, transformée en la sortie voulue",
+            "Combiner les réponses indépendantes en une seule réponse avec un agent qui s'exécute une fois qu'ils ont tous répondu"
+          ],
+          "checks": {
+            "config": "Configuration chargée",
+            "scenario1-graph": "Scénario 1 - le workflow concurrent diffuse de Start vers les trois spécialistes, puis regroupe vers ConcurrentEnd",
+            "scenario1-output": "Scénario 1 - la sortie agrégée contient une réponse par spécialiste, et pas l'entrée",
+            "scenario2-context": "Scénario 2 - chaque spécialiste n'a reçu que le message du client : les agents ne voient pas les réponses des autres",
+            "scenario2-parallel": "Scénario 2 - les tours des agents se sont chevauchés : ils ont travaillé en même temps",
+            "scenario2-usage": "Scénario 2 - consommation de tokens de chaque spécialiste affichée",
+            "scenario2-order": "Scénario 2 - la sortie liste les trois réponses dans leur ordre d'arrivée",
+            "scenario3-merged": "Scénario 3 - l'agrégateur personnalisé a fusionné les trois réponses en un message, dans l'ordre des spécialistes",
+            "scenario3-reply": "Scénario 3 - le rédacteur a répondu au client à propos du chargeur manquant, avec sa consommation de tokens"
+          }
+        }
+      }
+    },
+    {
+      "id": "azureopenai-lab06-server",
+      "number": "06",
+      "track": "Azure OpenAI",
+      "stage": "multi-agent",
+      "title": "A2A Server (Agent-to-Agent)",
+      "summary": "Host two agents with the A2A protocol v1 in ASP.NET Core: an AuthAgent with API key tools and a CustomerToneAgent, exposed with the JSON-RPC and HTTP+JSON bindings, described by their agent cards, and given a session store so that clients can have conversations. The dashboard checks your server with the reference client.",
+      "level": "Intermediate",
+      "objectives": [
+        "Host agents in ASP.NET Core with builder.AddA2AServer(agent)",
+        "Expose an agent with both A2A v1 bindings: MapA2AJsonRpc() and MapA2AHttpJson()",
+        "Describe an agent with an AgentCard (skills, SupportedInterfaces) and publish it with MapWellKnownAgentCard()",
+        "Give a hosted agent function tools: the model and the tools run on the server",
+        "Keep a conversation for each A2A contextId with a session store per agent (nothing is kept by default)"
+      ],
+      "path": "LearningLabs/AzureOpenAI/Lab06_A2AServer",
+      "startProject": "Start/A2AServer.csproj",
+      "solutionProject": "Solution/A2AServer.csproj",
+      "timeoutSeconds": 240,
+      "companion": {
+        "role": "client",
+        "project": "LearningLabs/AzureOpenAI/Lab06_A2AClient/Solution/A2AClient.csproj",
+        "readyPattern": "Now listening on: http://localhost:5071",
+        "readyTimeoutSeconds": 60,
+        "environment": {
+          "A2AServer__BaseUrl": "http://localhost:5071",
+          "RemoteAgents__AuthAgent__Url": "http://localhost:5071/a2a/authAgent",
+          "RemoteAgents__CustomerToneAgent__Url": "http://localhost:5071/a2a/customerToneAgent"
+        }
+      },
+      "expectations": [
+        {
+          "id": "config",
+          "description": "Configuration loaded (Azure OpenAI)",
+          "pattern": "(?s)^Endpoint: \\S+.*?^Deployment: \\S+"
+        },
+        {
+          "id": "server-listening",
+          "description": "The A2A server listens on the configured address",
+          "pattern": "^\\s*Now listening on: http://localhost:\\d+\\s*$"
+        },
+        {
+          "id": "scenario1-card",
+          "description": "Scenario 1 - agent card of the AuthAgent read: its skills and both A2A 1.0 interfaces (JSON-RPC and HTTP+JSON)",
+          "scenarios": [1],
+          "pattern": "(?s)^Agent card: AuthAgent \\(version [^)\\n]+\\)\\n.*?^\\s+Skill: GenerateAPIKey - .*?^\\s+Interface: JSONRPC \\(A2A 1\\.0\\) at http\\S+/a2a/authAgent\\s*\\n\\s+Interface: HTTP\\+JSON \\(A2A 1\\.0\\) at http\\S+/a2a/authAgent\\s*$"
+        },
+        {
+          "id": "scenario1-key",
+          "description": "Scenario 1 - the remote agent generated a signed API key (Meknes<random>.<signature>)",
+          "scenarios": [1],
+          "pattern": "^Generated API key: Meknes[A-Za-z0-9_-]+\\.[A-Za-z0-9_-]+\\s*$"
+        },
+        {
+          "id": "scenario1-valid",
+          "description": "Scenario 1 - the remote agent (its tool) validated the generated key",
+          "scenarios": [1],
+          "pattern": "(?i)^Validation of the generated key: (?![^\\n]*\\b(?:not|isn't|is not)\\s+(?:a\\s+)?valid|[^\\n]*\\binvalid\\b)[^\\n]*\\bvalid\\b"
+        },
+        {
+          "id": "scenario1-tampered",
+          "description": "Scenario 1 - the remote agent rejected the tampered key (only the signature check of the server can tell)",
+          "scenarios": [1],
+          "pattern": "(?i)^Validation of a tampered key: [^\\n]*(?:\\binvalid\\b|\\b(?:not|isn't)\\s+(?:a\\s+)?valid\\b)"
+        },
+        {
+          "id": "scenario2-tone",
+          "description": "Scenario 2 - the CustomerToneAgent, reached by URL, detected a negative tone",
+          "scenarios": [1],
+          "pattern": "(?is)^=== Scenario 2:(?:(?!^=== Scenario).)*?^Remote agent: CustomerToneAgent at http\\S+/a2a/customerToneAgent\\s*$\\n(?:(?!^=== Scenario).)*?^Tone: [^\\n]*\\b(?:frustrat|angr|upset|annoy|irritat|dissatisf|negative|impatien|disappoint)"
+        },
+        {
+          "id": "scenario3-tool",
+          "description": "Scenario 3 - the local agent called the remote AuthAgent as a function tool",
+          "scenarios": [1],
+          "pattern": "(?s)^=== Scenario 3:(?:(?!^=== Scenario).)*?^Tool called: AuthAgent\\s*$"
+        },
+        {
+          "id": "scenario3-key",
+          "description": "Scenario 3 - the answer of the local agent contains a signed API key",
+          "scenarios": [1],
+          "pattern": "(?s)^=== Scenario 3:(?:(?!^=== Scenario).)*?^Assistant: (?:(?!^=== Scenario|^Token Usage:).)*?Meknes[A-Za-z0-9_-]+\\.[A-Za-z0-9_-]+"
+        },
+        {
+          "id": "scenario3-usage",
+          "description": "Scenario 3 - token usage of the local agent displayed",
+          "scenarios": [1],
+          "pattern": "(?is)^=== Scenario 3:(?:(?!^=== Scenario).)*?input tokens:?\\s*\\d+"
+        },
+        {
+          "id": "session-store",
+          "description": "The server keeps the conversation of a client: in the same session, the client gets back the key of the first turn (client scenario 4)",
+          "pattern": "(?s)^=== Scenario 4:(?:(?!^=== Scenario).)*?^Generated API key: (Meknes[\\w-]+\\.[\\w-]+)\\s*$(?:(?!^New conversation:).)*?^Same session:(?:(?!^New conversation:).)*?\\1"
+        },
+        {
+          "id": "conversation",
+          "description": "The client continued a conversation: the server kept the history of the contextId (scenario 4 of the client)",
+          "pattern": "(?s)^Same session: (?:(?!^=== Scenario|^New conversation:).)*?^\\s*-> Answer contains the key of turn 1: yes\\s*$"
+        }
+      ],
+      "translations": {
+        "fr": {
+          "track": "Azure OpenAI",
+          "title": "Serveur A2A (Agent-to-Agent)",
+          "level": "Intermédiaire",
+          "summary": "Hébergez deux agents avec le protocole A2A v1 dans ASP.NET Core : un AuthAgent avec des outils de clés d'API et un CustomerToneAgent, exposés avec les liaisons JSON-RPC et HTTP+JSON, décrits par leurs cartes d'agent et dotés d'un magasin de sessions pour que les clients puissent mener des conversations. Le dashboard vérifie votre serveur avec le client de référence.",
+          "objectives": [
+            "Héberger des agents dans ASP.NET Core avec builder.AddA2AServer(agent)",
+            "Exposer un agent avec les deux liaisons d'A2A v1 : MapA2AJsonRpc() et MapA2AHttpJson()",
+            "Décrire un agent avec une AgentCard (compétences, SupportedInterfaces) et la publier avec MapWellKnownAgentCard()",
+            "Donner des outils à un agent hébergé : le modèle et les outils s'exécutent sur le serveur",
+            "Garder une conversation pour chaque contextId A2A avec un magasin de sessions par agent (rien n'est gardé par défaut)"
+          ],
+          "checks": {
+            "config": "Configuration chargée (Azure OpenAI)",
+            "server-listening": "Le serveur A2A écoute à l'adresse configurée",
+            "scenario1-card": "Scénario 1 - carte d'agent de l'AuthAgent lue : ses compétences et ses deux interfaces A2A 1.0 (JSON-RPC et HTTP+JSON)",
+            "scenario1-key": "Scénario 1 - l'agent distant a généré une clé d'API signée (Meknes<aléatoire>.<signature>)",
+            "scenario1-valid": "Scénario 1 - l'agent distant (son outil) a validé la clé générée",
+            "scenario1-tampered": "Scénario 1 - l'agent distant a rejeté la clé modifiée (seule la vérification de signature du serveur peut le savoir)",
+            "scenario2-tone": "Scénario 2 - le CustomerToneAgent, joint par son URL, a détecté un ton négatif",
+            "scenario3-tool": "Scénario 3 - l'agent local a appelé l'AuthAgent distant comme outil",
+            "scenario3-key": "Scénario 3 - la réponse de l'agent local contient une clé d'API signée",
+            "scenario3-usage": "Scénario 3 - consommation de tokens de l'agent local affichée",
+            "session-store": "Le serveur garde la conversation d'un client : dans la même session, le client retrouve la clé du premier tour (scénario 4 du client)",
+            "conversation": "Le client a poursuivi une conversation : le serveur a gardé l'historique du contextId (scénario 4 du client)"
+          }
+        }
+      }
+    },
+    {
+      "id": "azureopenai-lab06-client",
+      "number": "06",
+      "track": "Azure OpenAI",
+      "stage": "multi-agent",
+      "title": "A2A Client (Agent-to-Agent)",
+      "summary": "Call the agents of the A2A server: discover the AuthAgent from its agent card, reach the CustomerToneAgent by URL, give the remote AuthAgent to a local Azure OpenAI agent as a function tool, then have a conversation with it in a session. The dashboard starts the reference server for you.",
+      "level": "Intermediate",
+      "objectives": [
+        "Read an agent card with A2ACardResolver.GetAgentCardAsync(): skills and supported interfaces",
+        "Create an AIAgent for a remote agent with AgentCard.AsAIAgent() or A2ACardResolver.GetAIAgentAsync()",
+        "Connect to an agent by URL (direct configuration) with A2AClient.AsAIAgent()",
+        "Call a remote agent with RunAsync(), like a local agent",
+        "Use a remote agent as a function tool of a local agent with AsAIFunction()",
+        "Have a conversation with a remote agent: a session keeps the same A2A contextId, and the server keeps the history"
+      ],
+      "path": "LearningLabs/AzureOpenAI/Lab06_A2AClient",
+      "startProject": "Start/A2AClient.csproj",
+      "solutionProject": "Solution/A2AClient.csproj",
+      "timeoutSeconds": 240,
+      "companion": {
+        "role": "server",
+        "project": "LearningLabs/AzureOpenAI/Lab06_A2AServer/Solution/A2AServer.csproj",
+        "readyPattern": "Now listening on: http://localhost:5071",
+        "readyTimeoutSeconds": 60,
+        "environment": {
+          "A2AServer__BaseUrl": "http://localhost:5071",
+          "RemoteAgents__AuthAgent__Url": "http://localhost:5071/a2a/authAgent",
+          "RemoteAgents__CustomerToneAgent__Url": "http://localhost:5071/a2a/customerToneAgent"
+        }
+      },
+      "expectations": [
+        {
+          "id": "config",
+          "description": "Configuration loaded (Azure OpenAI)",
+          "pattern": "(?s)^Endpoint: \\S+.*?^Deployment: \\S+"
+        },
+        {
+          "id": "scenario1-card",
+          "description": "Scenario 1 - agent card of the AuthAgent read: its skills and both A2A 1.0 interfaces (JSON-RPC and HTTP+JSON)",
+          "pattern": "(?s)^Agent card: AuthAgent \\(version [^)\\n]+\\)\\n.*?^\\s+Skill: GenerateAPIKey - .*?^\\s+Interface: JSONRPC \\(A2A 1\\.0\\) at http\\S+/a2a/authAgent\\s*\\n\\s+Interface: HTTP\\+JSON \\(A2A 1\\.0\\) at http\\S+/a2a/authAgent\\s*$"
+        },
+        {
+          "id": "scenario1-key",
+          "description": "Scenario 1 - the remote agent generated a signed API key (Meknes<random>.<signature>)",
+          "pattern": "\\bMeknes[\\w-]+\\.[\\w-]+"
+        },
+        {
+          "id": "scenario1-valid",
+          "description": "Scenario 1 - the remote agent (its tool) validated the generated key",
+          "pattern": "(?is)\\bMeknes[\\w-]+\\.[\\w-]+\\s*$\\n(?:(?![^\\n]*valid)[^\\n]*\\n)*?(?![^\\n]*\\b(?:not|isn't|is not)\\s+(?:a\\s+)?valid|[^\\n]*\\binvalid\\b)[^\\n]*\\bvalid\\b"
+        },
+        {
+          "id": "scenario1-tampered",
+          "description": "Scenario 1 - the remote agent rejected the tampered key (only the signature check of the server can tell)",
+          "pattern": "(?is)\\bMeknes[\\w-]+\\.[\\w-]+\\s*$\\n(?:(?![^\\n]*valid)[^\\n]*\\n)*?[^\\n]*valid[^\\n]*\\n.*?^[^\\n]*(?:\\binvalid\\b|\\b(?:not|isn't)\\s+(?:a\\s+)?valid\\b)"
+        },
+        {
+          "id": "scenario2-tone",
+          "description": "Scenario 2 - the CustomerToneAgent, reached by URL, detected a negative tone",
+          "pattern": "(?is)\\bCustomerToneAgent\\b[^\\n]*/a2a/customerToneAgent\\b.*?\\b(?:frustrat|angr|upset|annoy|irritat|dissatisf|negative|impatien|disappoint)"
+        },
+        {
+          "id": "scenario3-tool",
+          "description": "Scenario 3 - the local agent called the remote AuthAgent as a function tool",
+          "pattern": "(?s)^Tool called: AuthAgent\\s*$"
+        },
+        {
+          "id": "scenario3-key",
+          "description": "Scenario 3 - the answer of the local agent contains a signed API key",
+          "pattern": "\\bMeknes[\\w-]+\\.[\\w-]+"
+        },
+        {
+          "id": "scenario3-usage",
+          "description": "Scenario 3 - token usage of the local agent displayed",
+          "pattern": "(?is)input tokens:?\\s*\\d+"
+        },
+        {
+          "id": "scenario4-key",
+          "description": "Scenario 4 - the remote agent generated a key in the first turn of the session",
+          "pattern": "\\bMeknes[\\w-]+\\.[\\w-]+"
+        },
+        {
+          "id": "scenario4-context",
+          "description": "Scenario 4 - both turns of the session used the same A2A contextId",
+          "pattern": "(?s)^Context id after[^\\n]*?\\b([0-9a-f]{32})\\b.*?^Context id after[^\\n]*?\\b\\1\\b"
+        },
+        {
+          "id": "scenario4-remembered",
+          "description": "Scenario 4 - in the same session, the remote agent gave back the exact key of the first turn (the server kept the conversation)",
+          "pattern": "(?s)\\b(Meknes[\\w-]+\\.[\\w-]+)\\b.*?\\b\\1\\b"
+        },
+        {
+          "id": "scenario4-new-conversation",
+          "description": "Scenario 4 - without the session, the remote agent did not know the key of the first turn",
+          "pattern": "(?s)\\b(Meknes[\\w-]+\\.[\\w-]+)\\b.*^Context id after[^\\n]*\\n(?=(?:(?!\\1).)*\\S)(?:(?!\\1).)*\\z"
+        }
+      ],
+      "translations": {
+        "fr": {
+          "track": "Azure OpenAI",
+          "title": "Client A2A (Agent-to-Agent)",
+          "level": "Intermédiaire",
+          "summary": "Appelez les agents du serveur A2A : découvrez l'AuthAgent par sa carte d'agent, joignez le CustomerToneAgent par son URL, donnez l'AuthAgent distant comme outil à un agent Azure OpenAI local, puis menez une conversation avec lui dans une session. Le dashboard démarre le serveur de référence pour vous.",
+          "objectives": [
+            "Lire une carte d'agent avec A2ACardResolver.GetAgentCardAsync() : compétences et interfaces prises en charge",
+            "Créer un AIAgent pour un agent distant avec AgentCard.AsAIAgent() ou A2ACardResolver.GetAIAgentAsync()",
+            "Se connecter à un agent par son URL (configuration directe) avec A2AClient.AsAIAgent()",
+            "Appeler un agent distant avec RunAsync(), comme un agent local",
+            "Utiliser un agent distant comme outil d'un agent local avec AsAIFunction()",
+            "Mener une conversation avec un agent distant : une session garde le même contextId A2A, et le serveur garde l'historique"
+          ],
+          "checks": {
+            "config": "Configuration chargée (Azure OpenAI)",
+            "scenario1-card": "Scénario 1 - carte d'agent de l'AuthAgent lue : ses compétences et ses deux interfaces A2A 1.0 (JSON-RPC et HTTP+JSON)",
+            "scenario1-key": "Scénario 1 - l'agent distant a généré une clé d'API signée (Meknes<aléatoire>.<signature>)",
+            "scenario1-valid": "Scénario 1 - l'agent distant (son outil) a validé la clé générée",
+            "scenario1-tampered": "Scénario 1 - l'agent distant a rejeté la clé modifiée (seule la vérification de signature du serveur peut le savoir)",
+            "scenario2-tone": "Scénario 2 - le CustomerToneAgent, joint par son URL, a détecté un ton négatif",
+            "scenario3-tool": "Scénario 3 - l'agent local a appelé l'AuthAgent distant comme outil",
+            "scenario3-key": "Scénario 3 - la réponse de l'agent local contient une clé d'API signée",
+            "scenario3-usage": "Scénario 3 - consommation de tokens de l'agent local affichée",
+            "scenario4-key": "Scénario 4 - l'agent distant a généré une clé au premier tour de la session",
+            "scenario4-context": "Scénario 4 - les deux tours de la session ont utilisé le même contextId A2A",
+            "scenario4-remembered": "Scénario 4 - dans la même session, l'agent distant a redonné exactement la clé du premier tour (le serveur a gardé la conversation)",
+            "scenario4-new-conversation": "Scénario 4 - sans la session, l'agent distant ne connaissait pas la clé du premier tour"
+          }
+        }
+      }
+    },
+    {
+      "id": "azureopenai-lab16-server",
+      "number": "16",
+      "track": "Azure OpenAI",
+      "stage": "multi-agent",
+      "title": "Expose a REST API as a Remote MCP Server",
+      "summary": "You are the provider team of an existing REST microservice: put a remote MCP server in front of it, without any agent nor model. Expose 4 of its 8 endpoints as typed MCP tools, turn the REST errors into tool errors, protect the tools with OAuth tokens, scopes and per-tool authorization, and make the server deployable on its own (health, stateless, Docker).",
+      "level": "Intermediate",
+      "objectives": [
+        "Connect an MCP server to an existing REST API with a typed HttpClient and its own service credential",
+        "Select the endpoints to expose and turn them into MCP tools with [McpServerTool]: descriptions, input and output schemas (UseStructuredContent), annotations",
+        "Validate the arguments of a tool and turn REST errors (404, 409, 5xx) into MCP tool errors with a call-tool filter, without leaking internals",
+        "Protect a remote MCP server as an OAuth protected resource: JWT bearer tokens, audience, Protected Resource Metadata (AddMcp), scopes",
+        "Restrict a write tool to some clients with [Authorize] and AddAuthorizationFilters(); never forward the client's token to the REST API",
+        "Run the MCP server as an independent service: /health, stateless Streamable HTTP, environment variables, Docker"
+      ],
+      "path": "LearningLabs/AzureOpenAI/Lab16_RestApiMCPServer",
+      "startProject": "Start/RestApiMCPServer.csproj",
+      "solutionProject": "Solution/RestApiMCPServer.csproj",
+      "timeoutSeconds": 240,
+      "expectations": [
+        {
+          "id": "server-listening",
+          "description": "The REST microservice runs and the MCP server listens on its /mcp endpoint",
+          "pattern": "(?s)^REST microservice: OrdersApi .*?^MCP server listening on http://localhost:\\d+/mcp\\b"
+        },
+        {
+          "id": "scenario1-tools",
+          "description": "Scenario 1 - exactly the 4 selected endpoints are listed as MCP tools",
+          "pattern": "^MCP tools available \\(4\\): get_order, get_product, place_order, search_products\\s*$"
+        },
+        {
+          "id": "scenario1-schemas",
+          "description": "Scenario 1 - the tools have a title, annotations and an output schema with descriptions",
+          "pattern": "(?s)^- get_order \\(Get an order\\) \\[read-only, closed world\\]\\s*$.*?^\\s+Output schema: \\{\"description\":\"An order of a customer\\.\""
+        },
+        {
+          "id": "scenario1-result",
+          "description": "Scenario 1 - search_products returned the data of the REST API as structured content (2 keyboards under 100 euros)",
+          "pattern": "-> result:\\s*\\n\\s*Structured content: \\{\"count\":2,\"products\":\\[\\{\"sku\":\"KB-100\""
+        },
+        {
+          "id": "scenario2-not-found",
+          "description": "Scenario 2 - a 404 of the REST API reached the client as a tool error with the message of the microservice",
+          "pattern": "-> tool error \\(isError: true\\):\\s*\\n\\s*Order ORD-9999 does not exist\\."
+        },
+        {
+          "id": "scenario2-conflict",
+          "description": "Scenario 2 - a 409 (not enough stock) reached the client as a tool error with the stock left",
+          "pattern": "-> tool error \\(isError: true\\):\\s*\\n\\s*Only \\d+ unit\\(s\\) of KB-200"
+        },
+        {
+          "id": "scenario2-outage",
+          "description": "Scenario 2 - a 500 of the REST API gave a generic message, without internal details",
+          "pattern": "\\A(?![\\s\\S]*orders-db)[\\s\\S]*?-> tool error \\(isError: true\\):\\s*\\n\\s*The orders service is unavailable\\."
+        },
+        {
+          "id": "scenario2-validation",
+          "description": "Scenario 2 - an invalid argument was refused by the tool itself",
+          "pattern": "-> tool error \\(isError: true\\):\\s*\\n\\s*'\\.\\./admin' is not a valid SKU"
+        },
+        {
+          "id": "scenario3-unauthorized",
+          "description": "Scenario 3 - without a token: 401 and a WWW-Authenticate header pointing to the Protected Resource Metadata",
+          "pattern": "\\b401 Unauthorized\\s*\\n[^\\n]*Bearer resource_metadata=\"http\\S+/\\.well-known/oauth-protected-resource/mcp\""
+        },
+        {
+          "id": "scenario3-metadata",
+          "description": "Scenario 3 - the Protected Resource Metadata gives the resource, the authorization server and the scopes",
+          "pattern": "http\\S+/mcp\\b[^\\n]*\\[\"http\\S+\"\\][^\\n]*\\[\"orders\\.read\",\"orders\\.write\"\\]"
+        },
+        {
+          "id": "scenario3-read-only",
+          "description": "Scenario 3 - the read-only client does not see place_order, and a direct call is refused",
+          "pattern": "(?s)^MCP tools available \\(3\\): get_order, get_product, search_products\\s*$.*?Access forbidden"
+        },
+        {
+          "id": "scenario3-on-behalf",
+          "description": "Scenario 3 - the order was placed by the MCP server with its own credential, on behalf of sales-agent",
+          "pattern": "\"placedBy\":\"orders-mcp-server on behalf of sales-agent\""
+        },
+        {
+          "id": "scenario4-health",
+          "description": "Scenario 4 - /health reports the MCP server and the REST microservice healthy",
+          "pattern": "\\b200 \\{\"status\":\"Healthy\",\"service\":\"orders-mcp-server\",\"checks\":\\{\"orders-api\":\\{\"status\":\"Healthy\""
+        },
+        {
+          "id": "scenario4-stateless",
+          "description": "Scenario 4 - two independent connections answered, without MCP session (stateless)",
+          "pattern": "\\byes\\b[^\\n]*\\bnone\\b"
+        }
+      ],
+      "translations": {
+        "fr": {
+          "track": "Azure OpenAI",
+          "title": "Exposer une API REST via un serveur MCP distant",
+          "level": "Intermédiaire",
+          "summary": "Vous êtes l'équipe fournisseur d'un microservice REST existant : placez devant lui un serveur MCP distant, sans agent ni modèle. Exposez 4 de ses 8 endpoints comme outils MCP typés, transformez les erreurs REST en erreurs d'outil, protégez les outils par jetons OAuth, scopes et autorisation par outil, et rendez le serveur déployable seul (health, stateless, Docker).",
+          "objectives": [
+            "Connecter un serveur MCP à une API REST existante avec un HttpClient typé et sa propre identité de service",
+            "Choisir les endpoints à exposer et les transformer en outils MCP avec [McpServerTool] : descriptions, schémas d'entrée et de sortie (UseStructuredContent), annotations",
+            "Valider les arguments d'un outil et transformer les erreurs REST (404, 409, 5xx) en erreurs d'outil MCP avec un filtre, sans divulguer de détails internes",
+            "Protéger un serveur MCP distant comme ressource OAuth : jetons JWT, audience, Protected Resource Metadata (AddMcp), scopes",
+            "Réserver un outil d'écriture à certains clients avec [Authorize] et AddAuthorizationFilters() ; ne jamais transmettre le jeton du client à l'API REST",
+            "Exécuter le serveur MCP comme un service indépendant : /health, Streamable HTTP stateless, variables d'environnement, Docker"
+          ],
+          "checks": {
+            "server-listening": "Le microservice REST tourne et le serveur MCP écoute sur son endpoint /mcp",
+            "scenario1-tools": "Scénario 1 - exactement les 4 endpoints choisis sont listés comme outils MCP",
+            "scenario1-schemas": "Scénario 1 - les outils ont un titre, des annotations et un schéma de sortie avec descriptions",
+            "scenario1-result": "Scénario 1 - search_products a renvoyé les données de l'API REST en contenu structuré (2 claviers à moins de 100 euros)",
+            "scenario2-not-found": "Scénario 2 - un 404 de l'API REST est arrivé au client comme erreur d'outil avec le message du microservice",
+            "scenario2-conflict": "Scénario 2 - un 409 (stock insuffisant) est arrivé au client comme erreur d'outil avec le stock restant",
+            "scenario2-outage": "Scénario 2 - un 500 de l'API REST a donné un message générique, sans détail interne",
+            "scenario2-validation": "Scénario 2 - un argument invalide a été refusé par l'outil lui-même",
+            "scenario3-unauthorized": "Scénario 3 - sans jeton : 401 et un en-tête WWW-Authenticate qui pointe vers la Protected Resource Metadata",
+            "scenario3-metadata": "Scénario 3 - la Protected Resource Metadata donne la ressource, le serveur d'autorisation et les scopes",
+            "scenario3-read-only": "Scénario 3 - le client en lecture seule ne voit pas place_order, et un appel direct est refusé",
+            "scenario3-on-behalf": "Scénario 3 - la commande a été passée par le serveur MCP avec sa propre identité, pour le compte de sales-agent",
+            "scenario4-health": "Scénario 4 - /health indique le serveur MCP et le microservice REST en bonne santé",
+            "scenario4-stateless": "Scénario 4 - deux connexions indépendantes ont répondu, sans session MCP (stateless)"
+          }
+        }
+      }
+    },
+    {
+      "id": "azureopenai-lab16-client",
+      "number": "16",
+      "track": "Azure OpenAI",
+      "stage": "multi-agent",
+      "title": "Use a Remote MCP Server of Another Team",
+      "summary": "You are the consumer team: get a token with your client credentials, connect your Azure OpenAI agent to the remote MCP server of the provider team, let it read and place orders and handle the REST errors, then see that a read-only client cannot order. The dashboard starts the reference MCP server (and its microservice) for you.",
+      "level": "Intermediate",
+      "objectives": [
+        "Get an access token for a remote MCP server with the OAuth client credentials grant and the resource parameter",
+        "Connect an MCP client with a bearer token (HttpClientTransportOptions.AdditionalHeaders)",
+        "Give the tools of a remote MCP server to an agent (McpClientTool as AITool)",
+        "See a tool error (isError) reach the model and let the agent adapt its call",
+        "Understand that the server, not the agent, decides what a client may do (scopes, per-tool authorization)"
+      ],
+      "path": "LearningLabs/AzureOpenAI/Lab16_RestApiMCPClient",
+      "startProject": "Start/RestApiMCPClient.csproj",
+      "solutionProject": "Solution/RestApiMCPClient.csproj",
+      "timeoutSeconds": 300,
+      "companion": {
+        "role": "server",
+        "project": "LearningLabs/AzureOpenAI/Lab16_RestApiMCPServer/Solution/RestApiMCPServer.csproj",
+        "readyPattern": "MCP server ready for other clients on http://localhost:5371/mcp",
+        "readyTimeoutSeconds": 150,
+        "environment": {
+          "OrdersMcpServer__BaseUrl": "http://localhost:5371",
+          "OrdersMcpServer__Serve": "true",
+          "OrdersApi__BaseUrl": "http://localhost:5372",
+          "RemoteMcpServer__Url": "http://localhost:5371/mcp",
+          "RemoteMcpServer__TokenEndpoint": "http://localhost:5371/oauth/token"
+        }
+      },
+      "expectations": [
+        {
+          "id": "config",
+          "description": "Configuration loaded (Azure OpenAI and the remote MCP server)",
+          "pattern": "(?s)^Endpoint: \\S+.*?^Deployment: \\S+.*?^Remote MCP server: http\\S+/mcp\\s*$"
+        },
+        {
+          "id": "scenario1-tools",
+          "description": "Scenario 1 - the sales-agent client got the 4 tools of the remote MCP server",
+          "pattern": "^MCP tools for sales-agent \\(4\\): get_order, get_product, place_order, search_products\\s*$"
+        },
+        {
+          "id": "scenario1-calls",
+          "description": "Scenario 1 - the agent called search_products and get_order through MCP",
+          "pattern": "(?s)\\A(?=.*?^Tool called: search_products\\()(?=.*?^Tool called: get_order\\([^\\n]*ORD-1002)"
+        },
+        {
+          "id": "scenario1-answer",
+          "description": "Scenario 1 - the answer uses the data of the microservice (KB-100 in stock, ORD-1002 pending)",
+          "pattern": "(?is)^Agent answer:\\s*$(?=.*?(?:KB-100|Compact mechanical keyboard))(?=.*?\\bpending\\b)"
+        },
+        {
+          "id": "scenario1-usage",
+          "description": "Scenario 1 - token usage displayed",
+          "pattern": "(?is)input tokens:?\\s*\\d+"
+        },
+        {
+          "id": "scenario2-order",
+          "description": "Scenario 2 - the agent placed an order of KB-200 through the MCP server, on behalf of sales-agent",
+          "pattern": "(?s)^Tool called: place_order\\([^\\n]*KB-200[^\\n]*\\)\\s*\\n\\s*Result: \\{\"orderId\":\"ORD-\\d+\"[^\\n]*on behalf of sales-agent"
+        },
+        {
+          "id": "scenario2-not-found",
+          "description": "Scenario 2 - the 404 of the REST API reached the agent as a tool error",
+          "pattern": "^\\s*Result: Order ORD-9999 does not exist\\. \\(tool error\\)"
+        },
+        {
+          "id": "scenario3-tools",
+          "description": "Scenario 3 - the read-only client did not get place_order",
+          "pattern": "^MCP tools for reporting-agent \\(3\\): get_order, get_product, search_products\\s*$"
+        },
+        {
+          "id": "scenario3-no-order",
+          "description": "Scenario 3 - the read-only agent did not place any order",
+          "pattern": "(?s)\\A(?:(?!^Tool called: place_order).)*^Agent answer:"
+        },
+        {
+          "id": "scenario3-refused",
+          "description": "Scenario 3 - a direct call of place_order was refused by the server",
+          "pattern": "Access forbidden"
+        }
+      ],
+      "translations": {
+        "fr": {
+          "track": "Azure OpenAI",
+          "title": "Utiliser le serveur MCP distant d'une autre équipe",
+          "level": "Intermédiaire",
+          "summary": "Vous êtes l'équipe consommatrice : obtenez un jeton avec vos identifiants client, connectez votre agent Azure OpenAI au serveur MCP distant de l'équipe fournisseur, laissez-le lire et passer des commandes et gérer les erreurs REST, puis constatez qu'un client en lecture seule ne peut pas commander. Le dashboard démarre pour vous le serveur MCP de référence (et son microservice).",
+          "objectives": [
+            "Obtenir un jeton d'accès pour un serveur MCP distant avec le flux OAuth client credentials et le paramètre resource",
+            "Connecter un client MCP avec un jeton bearer (HttpClientTransportOptions.AdditionalHeaders)",
+            "Donner les outils d'un serveur MCP distant à un agent (McpClientTool comme AITool)",
+            "Voir une erreur d'outil (isError) arriver au modèle et laisser l'agent adapter son appel",
+            "Comprendre que c'est le serveur, pas l'agent, qui décide de ce qu'un client peut faire (scopes, autorisation par outil)"
+          ],
+          "checks": {
+            "config": "Configuration chargée (Azure OpenAI et le serveur MCP distant)",
+            "scenario1-tools": "Scénario 1 - le client sales-agent a reçu les 4 outils du serveur MCP distant",
+            "scenario1-calls": "Scénario 1 - l'agent a appelé search_products et get_order via MCP",
+            "scenario1-answer": "Scénario 1 - la réponse utilise les données du microservice (KB-100 en stock, ORD-1002 en attente)",
+            "scenario1-usage": "Scénario 1 - consommation de tokens affichée",
+            "scenario2-order": "Scénario 2 - l'agent a passé une commande de KB-200 via le serveur MCP, pour le compte de sales-agent",
+            "scenario2-not-found": "Scénario 2 - le 404 de l'API REST est arrivé à l'agent comme erreur d'outil",
+            "scenario3-tools": "Scénario 3 - le client en lecture seule n'a pas reçu place_order",
+            "scenario3-no-order": "Scénario 3 - l'agent en lecture seule n'a passé aucune commande",
+            "scenario3-refused": "Scénario 3 - un appel direct de place_order a été refusé par le serveur"
+          }
+        }
+      }
+    },
+    {
+      "id": "azureopenai-lab11",
+      "number": "11",
+      "track": "Azure OpenAI",
+      "stage": "production",
+      "title": "Observe an Agent: HTTP Transport and OpenTelemetry",
+      "summary": "Give the OpenAI SDK your own HttpClient: a DelegatingHandler adds a header, logs every request and response with the credentials masked, measures each call and counts the requests. Then trace an agent that calls another agent as a tool with OpenTelemetry, and read its spans: the inner run and its tokens become visible.",
+      "level": "Intermediate",
+      "objectives": [
+        "Write an HTTP message handler with DelegatingHandler and its InnerHandler",
+        "Plug your own HttpClient into the OpenAI SDK with OpenAIClientOptions.Transport and HttpClientPipelineTransport",
+        "Add a custom header to every request, measure each call and count the HTTP requests of a run",
+        "Log requests and responses without ever printing a credential (Authorization masked)",
+        "See what an agent sends on the wire: the v1 URL, the deployment in the model field, the instructions, the tools and the tool results",
+        "Understand why one run can send several HTTP requests and why its token usage is their total",
+        "Trace an agent with OpenTelemetry: a TracerProvider that listens to a source, UseOpenTelemetry on the chat client and on the agent",
+        "Read a trace: invoke_agent, chat and execute_tool spans, their duration and token counts, including the run of an agent called as a tool"
+      ],
+      "path": "LearningLabs/AzureOpenAI/Lab11-AIAgentWithCustomHttpTransport",
+      "startProject": "Start/AIAgentWithCustomHttpTransport.csproj",
+      "solutionProject": "Solution/AIAgentWithCustomHttpTransport.csproj",
+      "timeoutSeconds": 180,
+      "expectations": [
+        {
+          "id": "config",
+          "description": "Configuration loaded",
+          "pattern": "^Endpoint: \\S+"
+        },
+        {
+          "id": "scenario1-request",
+          "description": "Scenario 1 - the handler logged the request on the Azure OpenAI v1 URL (POST .../openai/v1/chat/completions)",
+          "pattern": "(?is)^=== HTTP REQUEST #\\d+ ===\\s*$\\s*^\\[URL\\] POST https://\\S+/openai/v1/chat/completions\\s*$"
+        },
+        {
+          "id": "scenario1-header",
+          "description": "Scenario 1 - the handler added the custom header X-agent-name to the request",
+          "pattern": "(?is)^=== HTTP REQUEST #\\d+ ===(?:(?!^=== HTTP RE).)*?^\\s+X-agent-name: AIAgentWithCustomHttpTransport\\s*$"
+        },
+        {
+          "id": "credentials-masked",
+          "description": "The Authorization header is logged masked (Bearer [MASKED]), and no credential header is logged in clear",
+          "pattern": "(?is)\\A(?=.*?^\\s+Authorization: Bearer \\[MASKED\\]\\s*$)(?!.*?^\\s+(?:Authorization|api-key):(?! (?:\\w+ )?\\[MASKED\\]\\s*$))"
+        },
+        {
+          "id": "scenario1-response",
+          "description": "Scenario 1 - the handler logged the response status and the duration of the call (200 OK in N ms)",
+          "pattern": "(?is)^=== HTTP RESPONSE #\\d+ ===\\s*$\\s*^\\[Status\\] 200 OK \\(OK\\) in \\d+ ms\\s*$"
+        },
+        {
+          "id": "scenario1-answer",
+          "description": "Scenario 1 - the agent answered (Paris) and the run sent at least one HTTP request through the handler",
+          "pattern": "(?ims)^(?![\\s\"{\\[])[^\\n]*\\bParis\\b.*?^(?![^\\n]*\\btokens?\\b)[^\\n\\d]*\\b[1-9]\\d*\\b[^\\n\\d]*$"
+        },
+        {
+          "id": "scenario1-usage",
+          "description": "Scenario 1 - token usage displayed",
+          "pattern": "(?is)input tokens:?\\s*\\d+"
+        },
+        {
+          "id": "scenario2-tools",
+          "description": "Scenario 2 - the request sent the tools: the get_weather function in the tools array",
+          "pattern": "(?is)^=== HTTP REQUEST #\\d+ ===(?:(?!^=== HTTP RE).)*?\"tools\": \\[(?:(?!^=== HTTP RE).)*?\"name\": \"get_weather\""
+        },
+        {
+          "id": "scenario2-tool-call",
+          "description": "Scenario 2 - a response asked for the tool (finish_reason tool_calls, get_weather)",
+          "pattern": "(?is)^=== HTTP RESPONSE #\\d+ ===(?:(?!^=== HTTP RE).)*?\"finish_reason\": \"tool_calls\"(?:(?!^=== HTTP RE).)*?\"name\": \"get_weather\""
+        },
+        {
+          "id": "scenario2-tool-result",
+          "description": "Scenario 2 - a second request sent the tool result back to the model (role tool, cloudy with a high of 15 degrees Celsius)",
+          "pattern": "(?is)^=== HTTP REQUEST #\\d+ ===(?:(?!^=== HTTP RE).)*?\"role\": \"tool\",(?:(?!^=== HTTP RE).)*?\"content\": \"\\\\\"The weather in [^\"\\\\]*Amsterdam[^\"\\\\]* is cloudy with a high of 15 degrees Celsius\\.\\\\\"\""
+        },
+        {
+          "id": "scenario2-answer",
+          "description": "Scenario 2 - the agent answered with the tool data (15) and the run sent at least two HTTP requests",
+          "pattern": "(?ims)^(?![\\s\"{\\[])[^\\n]*\\b15\\s*(?:°|degrees?\\b|celsius\\b|C\\b).*?^(?![^\\n]*\\btokens?\\b)[^\\n\\d]*\\b(?:[2-9]|[1-9]\\d+)\\b[^\\n\\d]*$"
+        },
+        {
+          "id": "scenario2-usage",
+          "description": "Scenario 2 - token usage displayed",
+          "pattern": "(?is)input tokens:?\\s*\\d+"
+        },
+        {
+          "id": "scenario3-spans",
+          "description": "Scenario 3 - OpenTelemetry recorded the spans of the run",
+          "pattern": "(?im)^\\s*(?:invoke_agent|chat|execute_tool) \\S"
+        },
+        {
+          "id": "scenario3-agent-span",
+          "description": "Scenario 3 - the run of the travel assistant is an invoke_agent span with its model calls (chat spans) inside",
+          "pattern": "^(\\s*)invoke_agent TravelAssistant\\S* \\(\\d+ ms\\)[^\\n]*\\n\\1\\s+chat \\S"
+        },
+        {
+          "id": "scenario3-nested",
+          "description": "Scenario 3 - the weather agent called as a tool appears inside the execute_tool span, with its own tool call",
+          "pattern": "^(\\s*)execute_tool WeatherAgent \\(\\d+ ms\\)\\s*\\n\\1\\s+invoke_agent WeatherAgent\\S* \\(\\d+ ms\\)[^\\n]*\\n(?:\\1\\s{5,}[^\\n]*\\n)*?\\1\\s{5,}execute_tool get_weather \\("
+        },
+        {
+          "id": "scenario3-inner-tokens",
+          "description": "Scenario 3 - the span of the weather agent shows its own token usage",
+          "pattern": "^\\s+invoke_agent WeatherAgent\\S* \\(\\d+ ms\\) - input tokens \\d+, output tokens \\d+\\s*$"
+        },
+        {
+          "id": "scenario3-no-http-log",
+          "description": "Scenario 3 - the HTTP log was turned off during the traced run: no request logged, the spans of the run recorded",
+          "pattern": "(?is)\\A(?!.*^=== HTTP RE)(?=.*^\\s*invoke_agent \\S)"
+        },
+        {
+          "id": "scenario3-usage",
+          "description": "Scenario 3 - token usage displayed",
+          "pattern": "(?is)input tokens:?\\s*\\d+"
+        }
+      ],
+      "translations": {
+        "fr": {
+          "track": "Azure OpenAI",
+          "title": "Observer un agent : transport HTTP et OpenTelemetry",
+          "level": "Intermédiaire",
+          "summary": "Donnez votre propre HttpClient au SDK OpenAI : un DelegatingHandler ajoute un en-tête, journalise chaque requête et chaque réponse en masquant les identifiants, mesure chaque appel et compte les requêtes. Puis tracez avec OpenTelemetry un agent qui appelle un autre agent comme outil, et lisez ses spans : l'exécution interne et ses tokens deviennent visibles.",
+          "objectives": [
+            "Écrire un handler de messages HTTP avec DelegatingHandler et son InnerHandler",
+            "Brancher votre propre HttpClient dans le SDK OpenAI avec OpenAIClientOptions.Transport et HttpClientPipelineTransport",
+            "Ajouter un en-tête personnalisé à chaque requête, mesurer chaque appel et compter les requêtes HTTP d'une exécution",
+            "Journaliser les requêtes et les réponses sans jamais afficher d'identifiant (Authorization masqué)",
+            "Voir ce qu'un agent envoie sur le réseau : l'URL v1, le déploiement dans le champ model, les instructions, les outils et les résultats d'outils",
+            "Comprendre pourquoi une exécution peut envoyer plusieurs requêtes HTTP et pourquoi sa consommation de tokens en est le total",
+            "Tracer un agent avec OpenTelemetry : un TracerProvider qui écoute une source, UseOpenTelemetry sur le chat client et sur l'agent",
+            "Lire une trace : spans invoke_agent, chat et execute_tool, leur durée et leurs tokens, y compris l'exécution d'un agent appelé comme outil"
+          ],
+          "checks": {
+            "config": "Configuration chargée",
+            "scenario1-request": "Scénario 1 - le handler a journalisé la requête sur l'URL v1 d'Azure OpenAI (POST .../openai/v1/chat/completions)",
+            "scenario1-header": "Scénario 1 - le handler a ajouté l'en-tête personnalisé X-agent-name à la requête",
+            "credentials-masked": "L'en-tête Authorization est journalisé masqué (Bearer [MASKED]), et aucun en-tête d'identifiant n'apparaît en clair",
+            "scenario1-response": "Scénario 1 - le handler a journalisé le statut de la réponse et la durée de l'appel (200 OK in N ms)",
+            "scenario1-answer": "Scénario 1 - l'agent a répondu (Paris) et l'exécution a envoyé au moins une requête HTTP via le handler",
+            "scenario1-usage": "Scénario 1 - consommation de tokens affichée",
+            "scenario2-tools": "Scénario 2 - la requête a envoyé les outils : la fonction get_weather dans le tableau tools",
+            "scenario2-tool-call": "Scénario 2 - une réponse a demandé l'outil (finish_reason tool_calls, get_weather)",
+            "scenario2-tool-result": "Scénario 2 - une deuxième requête a renvoyé le résultat de l'outil au modèle (role tool, cloudy with a high of 15 degrees Celsius)",
+            "scenario2-answer": "Scénario 2 - l'agent a répondu avec la donnée de l'outil (15) et l'exécution a envoyé au moins deux requêtes HTTP",
+            "scenario2-usage": "Scénario 2 - consommation de tokens affichée",
+            "scenario3-spans": "Scénario 3 - OpenTelemetry a enregistré les spans de l'exécution",
+            "scenario3-agent-span": "Scénario 3 - l'exécution de l'assistant de voyage est un span invoke_agent qui contient ses appels au modèle (spans chat)",
+            "scenario3-nested": "Scénario 3 - l'agent météo appelé comme outil apparaît dans le span execute_tool, avec son propre appel d'outil",
+            "scenario3-inner-tokens": "Scénario 3 - le span de l'agent météo affiche sa propre consommation de tokens",
+            "scenario3-no-http-log": "Scénario 3 - le journal HTTP était coupé pendant l'exécution tracée : aucune requête journalisée, les spans de l'exécution enregistrés",
+            "scenario3-usage": "Scénario 3 - consommation de tokens affichée"
+          }
+        }
+      }
+    },
+    {
+      "id": "azureopenai-lab14",
+      "number": "14",
+      "track": "Azure OpenAI",
+      "stage": "production",
+      "title": "Evaluate an Agent",
+      "summary": "Test an agent like code: run it on a dataset of questions with expected answers and expected tool calls, check each answer with deterministic checks, score it with an LLM judge, and catch a regression of the instructions before it ships.",
+      "level": "Intermediate",
+      "objectives": [
+        "Build an evaluation dataset: questions, expected outputs, expected tool calls",
+        "Evaluate an agent with EvaluateAsync and a LocalEvaluator (EvalChecks, FunctionEvaluator)",
+        "Score answers with LLM-as-judge evaluators (RelevanceEvaluator, CoherenceEvaluator) and a ChatConfiguration",
+        "Evaluate responses you already have, without running the agent again",
+        "Compare two versions of an agent, detect a regression, and measure consistency with numRepetitions"
+      ],
+      "path": "LearningLabs/AzureOpenAI/Lab14-AIAgentEvaluation",
+      "startProject": "Start/AIAgentEvaluation.csproj",
+      "solutionProject": "Solution/AIAgentEvaluation.csproj",
+      "timeoutSeconds": 300,
+      "expectations": [
+        {
+          "id": "config",
+          "description": "Configuration loaded",
+          "pattern": "^Endpoint: \\S+"
+        },
+        {
+          "id": "scenario1-tool",
+          "description": "Scenario 1 - the expected tool call was checked: get_order_status with the right order number",
+          "pattern": "(?s)^\\s*\\[pass\\] tool_call_args_match: Tool call args match: 1/1 get_order_status: args match"
+        },
+        {
+          "id": "scenario1-expected",
+          "description": "Scenario 1 - the answer contained a fact only the tool knows (tracking number)",
+          "pattern": "(?s)^\\s*\\[pass\\] contains_expected: Response contains expected output: \\\"TRK-48213\\\""
+        },
+        {
+          "id": "scenario1-custom",
+          "description": "Scenario 1 - the custom check is_concise ran on the answers",
+          "pattern": "(?s)^\\s*\\[(?:pass|fail)\\] is_concise:"
+        },
+        {
+          "id": "scenario1-summary",
+          "description": "Scenario 1 - every question of the dataset passed its checks",
+          "pattern": "(?s)^Summary: 4/4 questions passed\\s*$"
+        },
+        {
+          "id": "scenario2-judge",
+          "description": "Scenario 2 - the LLM judge explained the score it gave",
+          "pattern": "(?im)^\\s*\\[score [1-5]\\] (?:Relevance|Coherence): \\S[^\\n]{20,}"
+        },
+        {
+          "id": "scenario2-scores",
+          "description": "Scenario 2 - the judge scored relevance and coherence from 1 to 5, with a reason",
+          "pattern": "(?s)\\A(?=.*?^\\s*\\[score [1-5]\\] Relevance: \\S)(?=.*?^\\s*\\[score [1-5]\\] Coherence: \\S)"
+        },
+        {
+          "id": "scenario3-comparison",
+          "description": "Scenario 3 - both versions were compared question by question, with the checks that failed",
+          "pattern": "(?s)^Q1: [^\\n]*\\bpass\\s+FAIL \\([^)\\n]*\\)"
+        },
+        {
+          "id": "scenario3-regression",
+          "description": "Scenario 3 - the comparison shows a regression: a question passes with the reference instructions and fails with the candidate ones",
+          "pattern": "(?im)^Q\\d+: [^\\n]*\\bpass\\s+FAIL\\b"
+        },
+        {
+          "id": "scenario3-repetitions",
+          "description": "Scenario 3 - a question was repeated 3 times to measure consistency",
+          "pattern": "(?m)^[^\\n]*\\b[0-3]/3\\b"
+        }
+      ],
+      "translations": {
+        "fr": {
+          "track": "Azure OpenAI",
+          "title": "Évaluer un agent",
+          "level": "Intermédiaire",
+          "summary": "Testez un agent comme du code : exécutez-le sur un jeu de questions avec réponses et appels d'outils attendus, vérifiez chaque réponse avec des contrôles déterministes, notez-la avec un LLM juge, et détectez une régression des instructions avant sa mise en production.",
+          "objectives": [
+            "Construire un jeu d'évaluation : questions, réponses attendues, appels d'outils attendus",
+            "Évaluer un agent avec EvaluateAsync et un LocalEvaluator (EvalChecks, FunctionEvaluator)",
+            "Noter les réponses avec des évaluateurs LLM juges (RelevanceEvaluator, CoherenceEvaluator) et une ChatConfiguration",
+            "Évaluer des réponses déjà obtenues, sans relancer l'agent",
+            "Comparer deux versions d'un agent, détecter une régression et mesurer la constance avec numRepetitions"
+          ],
+          "checks": {
+            "config": "Configuration chargée",
+            "scenario1-tool": "Scénario 1 - l'appel d'outil attendu a été vérifié : get_order_status avec le bon numéro de commande",
+            "scenario1-expected": "Scénario 1 - la réponse contenait un fait que seul l'outil connaît (numéro de suivi)",
+            "scenario1-custom": "Scénario 1 - le contrôle personnalisé is_concise a été appliqué aux réponses",
+            "scenario1-summary": "Scénario 1 - chaque question du jeu de données a passé ses contrôles",
+            "scenario2-judge": "Scénario 2 - le juge LLM a justifié la note qu'il a donnée",
+            "scenario2-scores": "Scénario 2 - le juge a noté la pertinence et la cohérence de 1 à 5, avec une raison",
+            "scenario3-comparison": "Scénario 3 - les deux versions ont été comparées question par question, avec les contrôles en échec",
+            "scenario3-regression": "Scénario 3 - la comparaison montre une régression : une question réussit avec les instructions de référence et échoue avec les candidates",
+            "scenario3-repetitions": "Scénario 3 - une question a été répétée 3 fois pour mesurer la constance"
+          }
+        }
+      }
+    },
+    {
+      "id": "azureopenai-lab13",
+      "number": "13",
+      "track": "Azure OpenAI",
+      "stage": "production",
+      "title": "Host an Agent in an ASP.NET Core API",
+      "summary": "Turn the agent into a web API for an application: the agent registered in dependency injection with a tool that acts for the signed-in user, an endpoint protected by JWT bearer tokens that streams the answer as Server-Sent Events, and conversations kept between requests and bound to each user.",
+      "level": "Intermediate",
+      "objectives": [
+        "Register an AIAgent in the ASP.NET Core dependency injection container, and give its tools the services of the request",
+        "Protect an endpoint with JWT bearer authentication and RequireAuthorization(), and check its input",
+        "Stream the answer of the agent with RunStreamingAsync and TypedResults.ServerSentEvents",
+        "Keep a conversation between HTTP requests with SerializeSessionAsync and DeserializeSessionAsync",
+        "Bind each stored conversation to the authenticated user: a conversation id is not a proof of ownership"
+      ],
+      "path": "LearningLabs/AzureOpenAI/Lab13-AIAgentInAspNetCoreApi",
+      "startProject": "Start/AIAgentWebApi.csproj",
+      "solutionProject": "Solution/AIAgentWebApi.csproj",
+      "timeoutSeconds": 240,
+      "expectations": [
+        {
+          "id": "config",
+          "description": "Configuration loaded",
+          "pattern": "^Endpoint: \\S+"
+        },
+        {
+          "id": "api-started",
+          "description": "The API started with its endpoint",
+          "pattern": "^API: POST http\\S+/api/conversations/\\{conversationId\\}/messages \\(bearer token required\\)\\s*$"
+        },
+        {
+          "id": "scenario1-unauthorized",
+          "description": "Scenario 1 - without a token, the request was refused with 401 before the agent ran",
+          "pattern": "(?s)^HTTP 401 Unauthorized\\b"
+        },
+        {
+          "id": "scenario1-validation",
+          "description": "Scenario 1 - an empty message was refused with 400 and problem details",
+          "pattern": "(?s)^HTTP 400 BadRequest \\(application/problem\\+json\\)\\s*$"
+        },
+        {
+          "id": "scenario2-streamed",
+          "description": "Scenario 2 - the answer was streamed as several Server-Sent Events",
+          "pattern": "(?s)^HTTP 200 OK \\(text/event-stream\\)\\s*$.*?^Server-sent events received: (?:[2-9]|[1-9]\\d+)\\s*$"
+        },
+        {
+          "id": "scenario2-tool",
+          "description": "Scenario 2 - the tool gave the team of Alice, read from her token",
+          "pattern": "(?s)^Agent: .*?\\bEngineering\\b"
+        },
+        {
+          "id": "scenario3-remembered",
+          "description": "Scenario 3 - in a new request, the API loaded the conversation of Alice (ROOM-B)",
+          "pattern": "(?s)^Agent: .*?ROOM-B"
+        },
+        {
+          "id": "scenario4-isolated",
+          "description": "Scenario 4 - with the same conversation id, Bob got his own conversation: his team, and no trace of ROOM-B",
+          "pattern": "(?s)\\A(?:(?!ROOM-B).)*?^Agent: (?:(?!ROOM-B).)*?\\bSales\\b(?:(?!ROOM-B).)*?^Server-sent events received:"
+        }
+      ],
+      "translations": {
+        "fr": {
+          "track": "Azure OpenAI",
+          "title": "Héberger un agent dans une API ASP.NET Core",
+          "level": "Intermédiaire",
+          "summary": "Transformez l'agent en API web pour une application : l'agent enregistré dans l'injection de dépendances avec un outil qui agit pour l'utilisateur connecté, un endpoint protégé par des jetons JWT qui streame la réponse en Server-Sent Events, et des conversations gardées d'une requête à l'autre et liées à chaque utilisateur.",
+          "objectives": [
+            "Enregistrer un AIAgent dans l'injection de dépendances d'ASP.NET Core, et donner à ses outils les services de la requête",
+            "Protéger un endpoint avec l'authentification JWT bearer et RequireAuthorization(), et vérifier ses entrées",
+            "Streamer la réponse de l'agent avec RunStreamingAsync et TypedResults.ServerSentEvents",
+            "Garder une conversation d'une requête HTTP à l'autre avec SerializeSessionAsync et DeserializeSessionAsync",
+            "Lier chaque conversation stockée à l'utilisateur authentifié : un identifiant de conversation n'est pas une preuve de propriété"
+          ],
+          "checks": {
+            "config": "Configuration chargée",
+            "api-started": "L'API a démarré avec son endpoint",
+            "scenario1-unauthorized": "Scénario 1 - sans jeton, la requête a été refusée en 401 avant l'exécution de l'agent",
+            "scenario1-validation": "Scénario 1 - un message vide a été refusé en 400 avec un problem details",
+            "scenario2-streamed": "Scénario 2 - la réponse a été streamée en plusieurs Server-Sent Events",
+            "scenario2-tool": "Scénario 2 - l'outil a donné l'équipe d'Alice, lue dans son jeton",
+            "scenario3-remembered": "Scénario 3 - dans une nouvelle requête, l'API a chargé la conversation d'Alice (ROOM-B)",
+            "scenario4-isolated": "Scénario 4 - avec le même identifiant de conversation, Bob a eu sa propre conversation : son équipe, et aucune trace de ROOM-B"
+          }
+        }
+      }
+    },
+    {
+      "id": "azureopenai-lab10",
+      "number": "10",
+      "track": "Azure OpenAI",
+      "stage": "further",
+      "title": "Expose an AI Agent as an MCP Tool",
+      "summary": "Optional lab, outside the essential path. Turn an agent into an MCP tool and serve it twice: over Streamable HTTP with ASP.NET Core, and over stdio as a child process of an MCP host. Call it as an MCP client, then let another agent delegate a booking to it through MCP.",
+      "level": "Intermediate",
+      "objectives": [
+        "Turn an agent into a function with AsAIFunction() (name, description, query parameter, a new session per call)",
+        "Wrap the function in an MCP tool with McpServerTool.Create() and register it with AddMcpServer().WithTools()",
+        "Serve the tool over Streamable HTTP with ASP.NET Core: WithHttpTransport() and MapMcp(path)",
+        "Serve the tool over stdio with Host.CreateEmptyApplicationBuilder() and WithStdioServerTransport(), with nothing else than MCP messages on stdout",
+        "Call the tool as an MCP client (ListToolsAsync, CallToolAsync) and start a stdio server as an MCP host (StdioClientTransport)",
+        "Give the MCP tool to another agent, which delegates a task to the exposed agent",
+        "Choose how to expose an agent: MCP (a tool for any MCP host) or A2A (an agent for other agents)"
+      ],
+      "path": "LearningLabs/AzureOpenAI/Lab10_ExposeAIAgentAsMCPTool",
+      "startProject": "Start/ExposeAIAgentAsMCPTool.csproj",
+      "solutionProject": "Solution/ExposeAIAgentAsMCPTool.csproj",
+      "timeoutSeconds": 180,
+      "expectations": [
+        {
+          "id": "config",
+          "description": "Configuration loaded",
+          "pattern": "^Endpoint: \\S+"
+        },
+        {
+          "id": "scenario1-server",
+          "description": "Scenario 1 - the HTTP MCP server listens on the MCP endpoint",
+          "pattern": "(?i)https?://\\S+/mcp/companyassistant\\b"
+        },
+        {
+          "id": "scenario1-tool",
+          "description": "Scenario 1 - the MCP client sees the agent as the CompanyAssistant tool, with a query parameter",
+          "pattern": "(?is)^MCP tools available \\(1\\):\\s*$\\s*^- CompanyAssistant: \\S[^\\n]*$\\s*^\\s*Input schema: \\{[^\\n]*\\\"query\\\""
+        },
+        {
+          "id": "scenario1-result",
+          "description": "Scenario 1 - the tool call over HTTP returned the agent's answer with data of the company tools (EMP003 is Charlie Brown)",
+          "pattern": "(?is)^Tool result:\\s*$.*?Charlie Brown"
+        },
+        {
+          "id": "scenario2-server",
+          "description": "Scenario 2 - the stdio MCP server was started as a child process (its log on stderr) and lists the CompanyAssistant tool",
+          "pattern": "(?is)\\A(?=.*?^\\[server\\] CompanyAssistant MCP server ready on stdio\\.)(?=.*?^MCP tools available \\(1\\):\\s*$\\s*^- CompanyAssistant: \\S)"
+        },
+        {
+          "id": "scenario2-result",
+          "description": "Scenario 2 - the tool call over stdio returned the rooms for 10 people or more (Innovation Lab, Executive Suite)",
+          "pattern": "(?is)^Tool result:\\s*$(?=.*?Innovation Lab)(?=.*?Executive Suite)"
+        },
+        {
+          "id": "scenario3-tool-call",
+          "description": "Scenario 3 - the OfficeAssistant called the CompanyAssistant MCP tool",
+          "pattern": "(?is)^Tool called: CompanyAssistant\\(query: \\S"
+        },
+        {
+          "id": "scenario3-result",
+          "description": "Scenario 3 - the booking went through MCP: names only the company tools know (Brainstorm Corner, Bob Johnson)",
+          "pattern": "(?is)^Tool called: CompanyAssistant\\((?=.*?Bob Johnson)(?=.*?Brainstorm Corner)"
+        },
+        {
+          "id": "scenario3-usage",
+          "description": "Scenario 3 - token usage displayed",
+          "pattern": "(?is)input tokens:?\\s*\\d+"
+        }
+      ],
+      "translations": {
+        "fr": {
+          "track": "Azure OpenAI",
+          "title": "Exposer un agent IA comme outil MCP",
+          "level": "Intermédiaire",
+          "summary": "Lab facultatif, hors du parcours essentiel. Transformez un agent en outil MCP et servez-le de deux façons : en Streamable HTTP avec ASP.NET Core, et en stdio comme processus enfant d'un hôte MCP. Appelez-le en client MCP, puis laissez un autre agent lui déléguer une réservation via MCP.",
+          "objectives": [
+            "Transformer un agent en fonction avec AsAIFunction() (nom, description, paramètre query, une nouvelle session par appel)",
+            "Envelopper la fonction dans un outil MCP avec McpServerTool.Create() et l'enregistrer avec AddMcpServer().WithTools()",
+            "Servir l'outil en Streamable HTTP avec ASP.NET Core : WithHttpTransport() et MapMcp(path)",
+            "Servir l'outil en stdio avec Host.CreateEmptyApplicationBuilder() et WithStdioServerTransport(), sans rien d'autre que les messages MCP sur stdout",
+            "Appeler l'outil en client MCP (ListToolsAsync, CallToolAsync) et démarrer un serveur stdio en hôte MCP (StdioClientTransport)",
+            "Donner l'outil MCP à un autre agent, qui délègue une tâche à l'agent exposé",
+            "Choisir comment exposer un agent : MCP (un outil pour tout hôte MCP) ou A2A (un agent pour d'autres agents)"
+          ],
+          "checks": {
+            "config": "Configuration chargée",
+            "scenario1-server": "Scénario 1 - le serveur MCP HTTP écoute sur l'endpoint MCP",
+            "scenario1-tool": "Scénario 1 - le client MCP voit l'agent comme l'outil CompanyAssistant, avec un paramètre query",
+            "scenario1-result": "Scénario 1 - l'appel de l'outil en HTTP a renvoyé la réponse de l'agent avec des données des outils de l'entreprise (EMP003 est Charlie Brown)",
+            "scenario2-server": "Scénario 2 - le serveur MCP stdio a été démarré comme processus enfant (son journal sur stderr) et liste l'outil CompanyAssistant",
+            "scenario2-result": "Scénario 2 - l'appel de l'outil en stdio a renvoyé les salles de 10 personnes ou plus (Innovation Lab, Executive Suite)",
+            "scenario3-tool-call": "Scénario 3 - l'OfficeAssistant a appelé l'outil MCP CompanyAssistant",
+            "scenario3-result": "Scénario 3 - la réservation est passée par MCP : des noms que seuls les outils de l'entreprise connaissent (Brainstorm Corner, Bob Johnson)",
+            "scenario3-usage": "Scénario 3 - consommation de tokens affichée"
+          }
+        }
+      }
+    },
+    {
+      "id": "azureopenai-lab08",
+      "number": "08",
+      "track": "Azure OpenAI",
+      "stage": "further",
+      "title": "Data Format Comparison",
+      "summary": "Optional lab, outside the essential path. Measure how the format of the data exchanged with the model changes the token usage: the same hotel question answered from a tool that returns JSON objects with structured output, then from a tool that returns CSV text with a CSV answer, and a side-by-side comparison of the tool result sizes and tokens.",
+      "level": "Intermediate",
+      "objectives": [
+        "See what the model receives when a function tool returns objects or text (FunctionResultContent)",
+        "Combine function tools with structured output (RunAsync<T> on an agent with tools)",
+        "Ask for a compact text format (CSV) in the instructions and parse the answer defensively",
+        "Read the tool calls, the tool result size and the token usage of a run from AgentResponse",
+        "Choose between structured JSON and a compact format from measured token usage"
+      ],
+      "path": "LearningLabs/AzureOpenAI/Lab08-DataFormatComparison",
+      "startProject": "Start/DataFormatComparison.csproj",
+      "solutionProject": "Solution/DataFormatComparison.csproj",
+      "timeoutSeconds": 240,
+      "expectations": [
+        {
+          "id": "config",
+          "description": "Configuration loaded",
+          "pattern": "^Endpoint: \\S+"
+        },
+        {
+          "id": "scenario1-tool",
+          "description": "Scenario 1 - the agent called get_all_hotels and the tool result (JSON objects) was measured",
+          "pattern": "(?is)^Tool called: get_all_hotels\\(\\)\\s*$\\s*^Tool result sent to the model: \\d{4,} characters"
+        },
+        {
+          "id": "scenario1-hotels",
+          "description": "Scenario 1 - the structured output lists the hotels under 100 USD with the cheapest one (Backpacker Hostel, 25 USD) first",
+          "pattern": "(?is)\\A(?:(?!USD/night).)*?^\\s*Backpacker Hostel \\(Bangkok\\) - 25 USD/night"
+        },
+        {
+          "id": "scenario1-usage",
+          "description": "Scenario 1 - token usage displayed",
+          "pattern": "(?is)input tokens:?\\s*\\d+"
+        },
+        {
+          "id": "scenario2-tool",
+          "description": "Scenario 2 - the agent called get_all_hotels and the tool result (CSV text) was measured",
+          "pattern": "(?is)^Tool called: get_all_hotels\\(\\)\\s*$\\s*^Tool result sent to the model: \\d+ characters"
+        },
+        {
+          "id": "scenario2-csv",
+          "description": "Scenario 2 - the answer is CSV with the expected header and the cheapest hotel first",
+          "pattern": "(?im)^Name,City,Stars,PricePerNight,Currency,Rooms,HasPool,HasWifi,Rating\\s*$\\s*^Backpacker Hostel,Bangkok,\\d,25,USD,"
+        },
+        {
+          "id": "scenario2-parsed",
+          "description": "Scenario 2 - the CSV answer was parsed back into hotels",
+          "pattern": "(?is)^Name,City,Stars,PricePerNight[^\\n]*$.*?^\\s*Backpacker Hostel \\(Bangkok\\) - 25 USD/night"
+        },
+        {
+          "id": "scenario2-usage",
+          "description": "Scenario 2 - token usage displayed",
+          "pattern": "(?is)input tokens:?\\s*\\d+"
+        },
+        {
+          "id": "comparison-tool-result",
+          "scenarios": [1, 2],
+          "description": "Comparison - the CSV tool result is smaller than the JSON one",
+          "pattern": "^Tool result \\(chars\\)\\s+\\d+\\s+\\d+\\s+-\\d+%\\s*$"
+        },
+        {
+          "id": "comparison-input",
+          "scenarios": [1, 2],
+          "description": "Comparison - the CSV run used fewer input tokens than the JSON run",
+          "pattern": "^Input tokens\\s+\\d+\\s+\\d+\\s+-\\d+%\\s*$"
+        },
+        {
+          "id": "comparison-output",
+          "scenarios": [1, 2],
+          "description": "Comparison - the CSV run used fewer output tokens than the JSON run",
+          "pattern": "^Output tokens\\s+\\d+\\s+\\d+\\s+-\\d+%\\s*$"
+        }
+      ],
+      "translations": {
+        "fr": {
+          "track": "Azure OpenAI",
+          "title": "Comparaison de formats de données",
+          "level": "Intermédiaire",
+          "summary": "Lab facultatif, hors du parcours essentiel. Mesurez comment le format des données échangées avec le modèle change la consommation de tokens : la même question sur des hôtels, répondue depuis un outil qui renvoie des objets JSON avec une sortie structurée, puis depuis un outil qui renvoie du CSV avec une réponse en CSV, et une comparaison côte à côte des tailles de résultats d'outil et des tokens.",
+          "objectives": [
+            "Voir ce que le modèle reçoit quand un function tool renvoie des objets ou du texte (FunctionResultContent)",
+            "Combiner function tools et sortie structurée (RunAsync<T> sur un agent avec outils)",
+            "Demander un format texte compact (CSV) dans les instructions et analyser la réponse de façon défensive",
+            "Lire les appels d'outil, la taille du résultat d'outil et la consommation de tokens d'un run depuis AgentResponse",
+            "Choisir entre JSON structuré et format compact à partir de la consommation mesurée"
+          ],
+          "checks": {
+            "config": "Configuration chargée",
+            "scenario1-tool": "Scénario 1 - l'agent a appelé get_all_hotels et le résultat d'outil (objets JSON) a été mesuré",
+            "scenario1-hotels": "Scénario 1 - la sortie structurée liste les hôtels à moins de 100 USD avec le moins cher (Backpacker Hostel, 25 USD) en premier",
+            "scenario1-usage": "Scénario 1 - consommation de tokens affichée",
+            "scenario2-tool": "Scénario 2 - l'agent a appelé get_all_hotels et le résultat d'outil (texte CSV) a été mesuré",
+            "scenario2-csv": "Scénario 2 - la réponse est du CSV avec l'en-tête attendu et l'hôtel le moins cher en premier",
+            "scenario2-parsed": "Scénario 2 - la réponse CSV a été relue en objets hôtel",
+            "scenario2-usage": "Scénario 2 - consommation de tokens affichée",
+            "comparison-tool-result": "Comparaison - le résultat d'outil CSV est plus petit que le JSON",
+            "comparison-input": "Comparaison - le run CSV a consommé moins de tokens d'entrée que le run JSON",
+            "comparison-output": "Comparaison - le run CSV a consommé moins de tokens de sortie que le run JSON"
+          }
+        }
+      }
+    }
+  ]
+}

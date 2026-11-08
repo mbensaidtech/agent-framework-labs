@@ -1,0 +1,560 @@
+# Lab Bench — local dashboard for the labs
+
+An optional, local web UI to follow the labs and run them without typing `dotnet` commands.
+It is a convenience layer: **every lab keeps working exactly the same with the CLI**, and no lab depends on the dashboard.
+
+> Every lab of `LearningLabs/` is registered in `LabDashboard/labs.json` (21 exercises: the 16 AzureOpenAI labs, Lab06 and Lab16 in server + client, and the 3 MultiAgentSystem labs).
+> The two Lab06 labs are run in pairs: each run of one starts the reference solution of the other as its **companion** (see [Labs run in pairs](#labs-run-in-pairs-companion)), on port 5071.
+> Scenario 3 of Lab05 needs its MongoDB container (`docker compose up -d` in the lab's `MongoDB/` folder): without it, the Solution run fails with *"MongoDB is not reachable"*. Without Docker, choose *MongoDB without Docker* or *JSON file* in **Settings → Lab storage** (or the **Change** button of the Run tab): it saves `Storage:Mode` in the user secrets, see the lab README.
+> Lab07 needs an **embedding** deployment (`AzureOpenAI:EmbeddingDeploymentName`, not part of the settings form): without it, the run stops with *"'AzureOpenAI:EmbeddingDeploymentName' is not configured"*.
+> Lab09 is the first **interactive** lab of the catalog: scenario 1 waits for your decision in the input box (`Y` approves; the checks expect the approval), scenario 2 needs no input.
+> Lab10 starts its own MCP servers during the run and stops them (no companion): an HTTP server on `McpServer:BaseUrl` (`http://localhost:5100` by default, the port must be free) and a stdio server, a child process of the lab whose stderr the lab prints as `[server]` lines.
+> Lab11 prints the whole HTTP traffic of its agents (about 600 lines per run, every header and JSON body); the lab masks the `Authorization` header itself, and a check fails if a credential header is printed in clear.
+> Lab12 needs its MongoDB container (`docker compose up -d` in the lab's `MongoDB/` folder, port 27018): without it, the Solution run fails with *"MongoDB is not reachable"*. Without Docker, choose *MongoDB without Docker* or *JSON file* in **Settings → Lab storage** (or the **Change** button of the Run tab): it saves `Storage:Mode` in the user secrets, see the lab README. It is **interactive**: scenario 2 is a chat that waits for your messages in the input box (any message, or none); end it with an empty line, `exit` or **End input**. Its checks read scenario 1 and the greeting of scenario 2, not your messages.
+
+## Start it
+
+```bash
+cd Dashboard/LabDashboard
+dotnet run
+```
+
+Then open <http://127.0.0.1:5057>. Stop it with `Ctrl+C`.
+
+The labs read their configuration as usual (`appsettings.json`, user secrets, `AzureOpenAI__*` environment variables):
+the dashboard starts them as child processes of your own user, so they see the same settings as in a terminal.
+To configure them without a terminal, use the **Azure OpenAI settings** (see below).
+
+## Interface
+
+- **Dark theme only**, whatever the system preference.
+- **English / Français**: switch with the `EN | FR` selector in the top bar (saved in the browser; the default follows the browser language).
+  Every UI text is translated (`wwwroot/js/i18n.js`). Program output is shown as printed.
+  Lab texts (title, summary, objectives, check descriptions) come from the optional `translations` of `labs.json`;
+  a lab can also provide `README.fr.md`, otherwise the English README is shown with a notice.
+- Responsive down to phone width; respects `prefers-reduced-motion`.
+
+## What it does
+
+| Feature | How |
+|---|---|
+| Lab list, progress, last result | `labs.json` (catalog) + local history; **one learning path** in the order of `labs.json`, one group per **stage** (*Stage 1 · Build an agent* … *Going further · optional*), each lab numbered by its step in the whole path, from 1; the track (Azure OpenAI, Multi-Agent System) is a tag of the lab, it never orders nor groups. See [The learning path](#the-learning-path) |
+| Instructions | the lab `README.md`, rendered to HTML on the server (Markdig, raw HTML disabled) |
+| Run the exercise (`Start`) or the reference (`Solution`) | `dotnet build <project> -nologo -v minimal`, then `dotnet run --project <project> --no-build -- --scenarios <ticked>` — the exact commands a developer types |
+| Scenario selection | the **Scenarios** list of the Run tab, read from the `Program.cs` of the project (`#region Scenario N: Title`): *Not implemented* while its code, or the setup before it, is still the code delivered with the exercise (comments do not count), the last result of each scenario, the scenario it requires (`// Requires scenario N`). Every scenario can be ticked; a ticked one that cannot run (not implemented, or requiring one that is not) is left out of the run and stays ticked. By default the implemented scenarios not passed yet and the next scenario (the one after the last passed) are ticked, with the scenarios they require; ticks made by hand last until the run ends, then the default applies again with the new results; **Default** / **Select implemented** / **Clear**. Only the ticked scenarios run (`-- --scenarios 1,3`, the option of the CLI) and only their checks are evaluated, each on the output of its own scenario; each scenario gets its status, its checks and the error raised while it ran. Same rules as `dotnet run` — see [Scenario selection](#scenario-selection) |
+| Live logs | stdout/stderr read as they are produced and pushed to the browser with Server-Sent Events |
+| Progress indicator | lines the program overwrites with `\r` (the `ConsoleSpinner` of CommonUtilities) are shown as a live status line instead of flooding the log |
+| Passed / Failed | build succeeded **and** exit code 0 **and** every check of the lab matched the output |
+| Errors | build errors (`error XX0000`) or stderr of the program |
+| Token usage | parsed from the usage **printed by the exercise** (`Input tokens: 56`, …), one report per block, labelled with the current scenario (`Scenario 2 · Token Usage`). Shown as *Not available* when the program prints none |
+| History | `Dashboard/.data/history.json` (git-ignored), 30 runs per lab |
+| Solution | the solution files that differ from the exercise, behind a "try it first" gate |
+| Cancel / timeout | kills the whole process tree |
+| Interactive labs (`Console.ReadLine`) | labs with `"interactive": true` keep stdin open: an input box under the output shows *Waiting for input #n* exactly when the program reads, sends the line, echoes it, and **End input** closes stdin (`ReadLine` returns `null`). Waiting does not count against the lab timeout — see [Interactive labs](#interactive-labs) |
+| Labs run in pairs (companion) | a lab can declare a `companion` project (the reference solution of another lab): a server started before the lab and stopped after it, or a client run against the lab once it is ready. Its output is shown as `companion` lines — see [Labs run in pairs](#labs-run-in-pairs-companion) |
+| AI models | top-bar button (status of the LLM: *API key* / *Microsoft Entra ID* / *Not configured*) opening the **AI models** settings: the LLM and the embedding model, each with the **trainer's configuration** (unlocked with the access code announced by the trainer) or **my configuration** (an Azure OpenAI form), shared by every migrated lab — see [AI models settings](#ai-models-settings) |
+| Reset exercises | **Reset exercises…** under the lab list, **Reset this exercise…** in the History tab (shown once the exercise was started): one exercise, several or all back to *Not started* (their runs and their `_StartCompleted/` folder), after confirmations proportional to the risk — see [Reset exercises](#reset-exercises) |
+| Journey | a column left of the lab list or a band above it (your choice): overall progress, the state of every exercise, XP, rank, milestones, distinctions and the next mission, recomputed from the local history and refreshed by itself — see [Journey](#journey) |
+
+## Architecture
+
+```
+Browser (HTML + CSS + JS, no framework, no CDN)
+   │  fetch /api/...            EventSource /api/runs/{id}/events
+   ▼
+LabDashboard (ASP.NET Core minimal API, 127.0.0.1 only)
+   ├─ LabCatalog      whitelist of labs and projects (labs.json), scenarios of a project (Program.cs)
+   │   └─ LabScenarios  scenario rules shared with the labs (CommonUtilities/LabScenarios.cs, compiled by both)
+   ├─ LabRunner       one run at a time: build → run → checks
+   │   └─ ProcessRunner + ConsoleStreamDecoder   (no shell, terminal semantics)
+   │   └─ RunInput + InputSignalParser          (stdin of interactive labs)
+   ├─ OutputAnalyzer  checks, scenario results, token usage, build diagnostics
+   ├─ ExerciseProgress completion of an exercise (every scenario passed, across runs)
+   ├─ RunHistoryStore JSON file, atomic writes
+   ├─ LabResetService reset of exercises (runs + _StartCompleted), single-use confirmations
+   ├─ LearningJourney states, XP, rank, milestones, distinctions (computed from the history, read-only)
+   ├─ AzureOpenAISettingsStore  AI models: profiles and modes in the shared user secrets
+   ├─ TrainerUnlockFlow → TrainerConfigurationService → admin dashboard (contract v1) or mock
+   └─ ReportingClient progress and help requests to the admin dashboard (outbox, background loop)
+   ▼
+dotnet build / dotnet run  →  LearningLabs/.../Start|Solution
+                              └─ LabInputHook (startup hook, interactive labs only)
+```
+
+| API | Purpose |
+|---|---|
+| `GET /api/labs` | catalog with progress and last runs |
+| `GET /api/labs/{id}?lang=fr` | details: README (HTML, `README.fr.md` when present), objectives, packages, commands, checks, history |
+| `GET /api/labs/{id}/solution` | solution files that differ from the exercise |
+| `GET /api/journey` | the journey: per lab `state` (`notStarted` / `inProgress` / `completed` / `toResume`), `bonusScenarios`, `bonusCompleted` / `bonusCompletedAt` (*Completed+*), `running`, attempts, best checks, XP and XP still within reach; totals, `rank` (and next rank), `milestones`, `badges`, `next` mission. Read-only, recomputed on every call |
+| `GET /api/labs/{id}/scenarios` | per project (`start`, `solution`), the scenarios read now from its `Program.cs`: `number`, `title`, `implemented` (its code and the setup are no longer the delivered ones), `runnable` (implemented, and so are the scenarios it requires), `setupImplemented`, `requires`, and `last` (`status` `passed` / `failed`, `runId`, `startedAt`) when it already ran |
+| `POST /api/labs/{id}/scenarios/{n}/validation` · `DELETE` | validate by hand the last result of scenario `n` of the exercise, or remove every validation by hand of it (the scenario counts again with the result of its checks). Only a failed scenario of a Start run that failed on its output checks (failure stage `checks`) can be validated: 409 `noResult` / `notEligible`. Then a `progress.snapshot` is reported. See [Manual validation](#manual-validation) |
+| `POST /api/labs/{id}/runs` `{ "target": "start" \| "solution", "scenarios"?: [1, 3] }` | start a run (409 if one is in progress) of the given scenarios and the scenarios they require; without `scenarios`, the implemented ones. A scenario that cannot run (not implemented, or requiring one that is not) is left out: `notImplemented` in the answer, `notImplemented: true` on its result (status `skipped`). 400 `scenarios`: `unknown` (a number the program does not have), `notImplemented` (none of the scenarios asked for can run), `required` (empty list), `noneImplemented` (no `scenarios` and nothing implemented). Answers `runId`, the `scenarios` that run and the `notImplemented` ones left out |
+| `GET /api/runs/{runId}/events` | Server-Sent Events: `phase`, `output` (streams `stdout`, `stderr`, `system`, `stdin`), `progress`, `input-request`, `input-sent`, `input-closed`, `result` (replayed from the start on reconnection) |
+| `POST /api/runs/{runId}/input` `{ "text": "…" }` | send one line to an interactive run (400 `newline` / `tooLong`; 409 `notInteractive`, `notAccepting` (build or exited), `closed`, `tooManyPending`) |
+| `POST /api/runs/{runId}/input/close` | close the standard input of an interactive run |
+| `POST /api/runs/{runId}/cancel` | cancel a run |
+| `POST /api/labs/reset/preview` `{ "labIds": [...] }` | what a reset would delete (runs per target, `_StartCompleted/` files, size and source files, `blocked` reason) and, unless a lab is blocked, a single-use `confirmationId` valid 10 minutes, plus a 5-character `code` for several labs. **Deletes nothing** (400 `labIds`: `required` / `unknown`) |
+| `POST /api/labs/reset` `{ "confirmationId", "names"?, "code"? }` | reset the labs of that confirmation (`names`: the folder name of the lab when there is one; `code`: when there are several, names not needed): per-lab result `reset` / `nothingToReset` / `failed` (runs and files removed, `verified`, error). 400 `names` / `code` (`mismatch`), 409 `running` / `busy`, 410 `expired` (unknown, expired or already used) / `tooManyAttempts` (3rd wrong code) — a refused request deletes nothing |
+| `GET /api/settings/models` | the AI models: per kind (`chat` = the LLM, `embedding`) the mode (`custom` / `trainer`), the custom and trainer profiles (a key is only `stored` + its last 4 characters; a trainer profile also has its `configId`, `configName`, `configUpdatedAt` and the date of the last unlock) and what the labs use (`active`), each value with its source — **never a key** |
+| `PUT /api/settings/models/{kind}/custom` `{ "provider", "endpoint", "deployment", "apiKey", "sameResourceAsLlm"? }` | save my configuration of a kind; applied at once in custom mode (400 with field errors; `unsupportedProvider` for anything but `azure-openai`; an empty key keeps the stored key) |
+| `DELETE /api/settings/models/{kind}/custom/api-key` | remove the key of my configuration (Microsoft Entra ID) |
+| `PUT /api/settings/models/{kind}/mode` `{ "mode": "custom" \| "trainer" }` | select the profile the labs use for a kind (409 `profileIncomplete` with `missing`, or `unsupportedProvider`: nothing written) |
+| `GET /api/settings/azure-openai` · `PUT` · `DELETE …/api-key` | the former single form, kept for compatibility (no longer used by the page): `GET` gives what the labs use for the LLM, `PUT` and `DELETE` change my LLM configuration |
+| `GET /api/trainer-models` | the trainer's configurations, read without any code (one call to the admin dashboard, when the AI models tab opens or on Refresh): per kind the default (`state` `applicable` / `notApplicable` / `unusable` / `none`, `reason`, `warnings`, `updatedSinceUnlock`), or the `error` that prevents reading them; `simulated` when the mock answers; the unlock under way (`unlock`) |
+| `POST /api/trainer-models/unlock` `{ "kinds": ["chat", "embedding"] }` | start an unlock for the ticked kinds: the dashboard server fetches **one** envelope and holds it (at most one, 10 minutes at most); answers `codeRequired` (code length and alphabet, attempts, expiry) or `idle` with the `error` (400 `kinds`: one or two distinct kinds) |
+| `POST /api/trainer-models/code` `{ "code" }` | open the held envelope with the access code: `unlocked` (the keys of the ticked kinds are saved, those kinds switch to trainer mode, the new `models` status), or the error (`invalidCode` with `attemptsLeft`, `envelopeExpired` with its `reason`, `rateLimited`…). A code out of format is refused without any call. The code is never returned, stored or logged |
+| `POST /api/trainer-models/cancel` | drop the held envelope (the page also calls it when the settings dialog closes) |
+| `GET /api/reporting/status` | reporting to the admin dashboard: enabled, state (`disabled` / `registering` / `connected` / `offline` / `rejected`), server host, username, `userId`, outbox size, help request, whether the workshop key and the admin API key are configured and where from (`environment` / `dashboard` / `appsettings` / `missing`) — **never the workshop key, the admin API key nor the dev token** |
+| `POST /api/identity` `{ "username", "workshopKey"? }` | first launch: creates the identity (`userId`) and registers it (400 with field errors). `workshopKey` takes the trainer's **invitation code** (`LB1.…`: 400 `invalid` / `unsupportedVersion`) or a plain workshop key (400 `apiKeyRequired` when no admin API key is configured) |
+| `PUT /api/reporting/settings` `{ "username"?, "workshopKey"? }` | change the username, the workshop key or paste a new invitation code (write-only); an empty field keeps the value |
+| `GET /api/help` · `POST /api/help` `{ "labId"?, "message"? }` · `POST /api/help/cancel` · `POST /api/help/dismiss` | the help request of the developer: read, send ("Help / Je suis bloqué", 409 `active` while one is active), cancel ("I'm unblocked"), hide a closed one |
+
+## Security
+
+It runs processes, so it is locked down to a local, single-user tool:
+
+- listens on **127.0.0.1 only** (not reachable from the network);
+- only the projects declared in `labs.json` can be run; paths are resolved and must stay inside the repository;
+- no shell: `ProcessStartInfo.ArgumentList`, never a command string;
+- requests with a non-local `Host` header are rejected (DNS rebinding);
+- `POST` requests need the `X-Lab-Dashboard: 1` header and a same-origin `Origin` (CSRF: a web page cannot trigger a run);
+- no CORS, no authentication secrets, no cloud dependency. The README is rendered with raw HTML disabled;
+- every API key of the AI models (custom and trainer profiles, both kinds) is **write-only**: the API never returns it (only "stored" and its
+  last 4 characters), the form clears it after saving, it is never logged, and any occurrence of it in a run output (live stream, result,
+  history, copied output) is replaced by `••••`;
+- the trainer's keys are opened **in the dashboard server only** (never in the browser), with the access code the candidate types: the code
+  is used for one request and never stored, logged or returned; only an HMAC proof leaves the machine. The envelope held between Unlock and
+  the code cannot be opened without the code and the server's one-time unlock key, and is dropped at success, cancel or expiry;
+- the admin API key and the workshop key (typed, or carried by the trainer's invitation code) are never displayed back, logged or reported;
+- a reset of exercises only deletes the history of the selected labs and their `<lab folder>/_StartCompleted` (fixed name, never a path from the request), after a confirmation the server checks itself (see [Reset exercises](#reset-exercises)).
+
+<a id="azure-openai-settings"></a>
+
+## AI models settings
+
+The labs use two models, configured separately in the **AI models** tab of the settings:
+
+| Model | Used by | Entries the labs read |
+|---|---|---|
+| **LLM** (`chat`) | every lab | `AzureOpenAI:Endpoint`, `AzureOpenAI:ChatDeploymentName`, `AzureOpenAI:APIKey` (absent: Microsoft Entra ID) |
+| **Embedding model** (`embedding`) | Lab07 | `AzureOpenAI:EmbeddingDeploymentName`; on its own resource also `AzureOpenAI:EmbeddingEndpoint` and `AzureOpenAI:EmbeddingAPIKey` (absent: Microsoft Entra ID, **never** the key of the LLM on another endpoint) |
+
+Each card has a mode switch:
+
+- **My configuration**: the candidate's own Azure OpenAI deployment — provider (Azure OpenAI only), endpoint, deployment, optional key. The embedding model uses *the same resource as the LLM in use* (only its deployment is entered) or *its own resource*.
+- **Trainer configuration**: the trainer's configuration, read from the admin dashboard and unlocked with the access code the trainer announces — see [The trainer's configuration](#the-trainers-configuration).
+
+Both profiles of each model are kept: switching mode never loses one, and switching back to *My configuration* restores the values typed before.
+
+| Question | Answer |
+|---|---|
+| Where is it stored? | In the **shared user secrets** of the labs (`UserSecretsId` = `microsoft-agent-framework-learninglabs`, read from the lab projects): `~/.microsoft/usersecrets/microsoft-agent-framework-learninglabs/secrets.json` (macOS/Linux) or `%APPDATA%\Microsoft\UserSecrets\microsoft-agent-framework-learninglabs\secrets.json` (Windows). **Outside the repository**; created private to the user (`600`/`700`) on macOS/Linux. |
+| What is written? | The selected profile of each model goes to the active `AzureOpenAI:*` entries above, the only ones the labs read. The profiles and the modes live next to them under `LabBench:Models:{Chat\|Embedding}:{Mode\|Custom:*\|Trainer:*}` (a trainer profile also keeps the id, name and `updatedAt` of the trainer configuration and the date of the last unlock), ignored by the labs. Flat format of `dotnet user-secrets set`; other entries of the file are kept; a file that is not valid JSON is never overwritten. |
+| A configuration already exists? | It becomes *My configuration* of the LLM (an `EmbeddingDeploymentName` becomes that of the embedding model, on the LLM's resource), in custom mode, without any write: the labs keep working. |
+| How do the labs get it? | Unchanged: their `ConfigurationHelper` reads `appsettings.json` → user secrets → environment variables. The values apply to runs from the dashboard **and** to `dotnet run` in a terminal, without restarting anything. |
+| What wins? | `appsettings.json` of the lab < these settings < `AzureOpenAI__*` environment variables of the dashboard process (including `AzureOpenAI__EmbeddingEndpoint` and `AzureOpenAI__EmbeddingAPIKey`). A value set on the computer is shown in the field, read-only, with a *Set on this computer* badge (a key only as its last 4 characters). |
+| A value is missing? | No endpoint or deployment anywhere: the lab stops with *"'AzureOpenAI:Endpoint' is not configured"* and the run result links to the settings. No API key: Microsoft Entra ID (`az login` + *Cognitive Services OpenAI User* role). |
+| API version? | Not needed: the labs use the Azure OpenAI **v1** API (`…/openai/v1/`), which has no `api-version`. |
+
+The CLI remains fully equivalent: `dotnet user-secrets set "AzureOpenAI:APIKey" "<key>"` from any lab folder writes the same file; in custom mode, a value set this way is *My configuration*.
+Other lab settings are not managed here: for example the optional Hugging Face token of Lab04 is set with `dotnet user-secrets set "MCPServers:HuggingFace:BearerToken" "<token>"` (same file). The dashboard keeps these entries; only the keys of the AI models are masked in the run output — Lab04 never prints its token.
+
+### The trainer's configuration
+
+1. **Review, without any code.** When the AI models tab opens (or on **Refresh**, never polled), the dashboard reads the trainer's configurations from the admin dashboard. Each card shows the trainer's default for its model: name, provider, deployment, endpoint host, *key provided*; whether it can be used (the labs only call Azure OpenAI; a configuration whose key cannot be read is *not usable: tell the trainer*); the warning *Lab07 expects 1536 dimensions*; and *Updated by the trainer since your last unlock*.
+2. **Unlock.** The candidate ticks **Use the trainer's configuration** in the cards to take and clicks **Unlock**: the dashboard server fetches one sealed envelope and holds it (one at most, 10 minutes at most; dropped on **Cancel**, when the dialog closes, or at its expiry).
+3. **Access code.** The candidate types the code announced by the trainer: 5 characters of `ABCDEFGHJKMNPQRSTUVWXYZ23456789` (no 0, O, 1, I or L), upper-cased as typed, `k7qx-9` works. The dashboard server derives a proof from it (the code never leaves the machine), the admin dashboard releases a one-time unlock key, and the server opens the envelope: the keys of the ticked models are saved at once and those models switch to *Trainer configuration*. *My configuration* is never touched.
+
+It needs the admin dashboard URL (HTTPS), the admin API key (carried by the trainer's [invitation code](#invitation-code)) and the workshop identity (the candidate joined the workshop): otherwise the tab says what is missing and leads to the *Workshop* tab.
+What the candidate sees on a refusal (Business Rule 20 of the spec): a wrong code gives the attempts left (3 per envelope; after the last one, the next code starts with a new envelope); an expired envelope is replaced and the code tried once more without asking again; too many wrong codes or unlocks give the wait time, and nothing is tried before; a configuration changed by the trainer asks for a new review; an archived account, a closed workshop, an access code that expired or changed each have their message. Nothing is ever written on a refusal.
+
+### Integration layer
+
+Everything that depends on the admin dashboard stays behind one integration point (`TrainerModels/`), so that the page and the storage never depend on it:
+
+| Piece | Role |
+|---|---|
+| `TrainerConfigurationService` | the integration point: overview, retrieve, unlock. Chooses its adapters at startup; reads the admin API key and the identity at each call (an invitation or joining the workshop applies without a restart) |
+| `AdminModelConfigsClient`, `AdminModelConfigs` | the admin API (contract v1): routes, headers, answers, error bodies, rate limits, `Retry-After` |
+| `AdminEnvelopeDecryptor` | the envelope protocol: validation before any derivation, PBKDF2 → HMAC proof → unlock key → HKDF → AES-256-GCM, plaintext validation, one retry for `expired` / `unknown` / `keyRotated`, buffers wiped |
+| `MockTrainerConfiguration` | a simulated trainer, for development and tests: fake values (`*.trainer-mock.invalid`, keys starting with `mock-`), no network call |
+| `TrainerUnlockFlow` | the flow of the page: one held envelope, the code, the profiles saved for the ticked models |
+
+The adapters, in this order: the **mock** when `Dashboard:TrainerModels:Mock:Enabled` is set; otherwise *not configured* when `Dashboard:Reporting:ServerUrl` is absent or not HTTPS (`http://` only for `localhost`); otherwise the **admin dashboard** adapter.
+The mock is project configuration only, never reachable from the browser, and the tab shows *Simulated trainer configuration* while it answers:
+
+| Setting (`Dashboard:TrainerModels:Mock`) | Default |
+|---|---|
+| `Enabled` | `false` |
+| `Code` — the code that unlocks the simulated configuration (not a secret) | `K7QX9` |
+| `ProvideEmbedding` — `false`: the simulated trainer provides the LLM only | `true` |
+| `RetrieveError`, `UnlockError` — an error kind to simulate (`network`, `unauthorized`, `rateLimited`, `notFound`…) | none |
+
+To try the whole flow without touching your own user secrets, run a second dashboard with a temporary home folder (macOS/Linux; on Windows set `APPDATA` instead of `HOME`), no reporting and its own data folder:
+
+```bash
+cd Dashboard/LabDashboard && dotnet build
+HOME=$(mktemp -d) Dashboard__Port=5091 Dashboard__DataDirectory=$(mktemp -d) Dashboard__Reporting__ServerUrl= \
+  Dashboard__TrainerModels__Mock__Enabled=true dotnet bin/Debug/net10.0/LabDashboard.dll
+```
+
+#### What depends on the admin dashboard contract
+
+The dashboard implements the **Admin API contract v1** (`Lab Bench Admin — AI model configurations (local dashboard API)` 1.0.0, amended on 2026-10-26), summarized below. A change of the contract only changes these points:
+
+| Point | Where |
+|---|---|
+| Routes: `GET /api/v1/model-configs` (overview), `?sealed=1` (envelope), `POST /api/v1/model-configs/unlock` (body exactly `{ envelopeId, proof }`) | `AdminModelConfigsContract` |
+| Headers: `X-API-Key` and `Authorization: Bearer <dev token>`; `devId` = the `userId` of the identity, lower-case | `AdminModelConfigsClient` |
+| Answers and errors: `configs`, `defaults`, `sealedConfigIds`, `unsealedConfigs`, `sealedUnavailableReason`; `{ error, message, details }`; limits 30 GET / 5 envelopes / 20 unlocks per minute | `AdminModelConfigs` (parser), `AdminModelConfigsClient` |
+| Envelope protocol: version 1, AES-256-GCM, PBKDF2-HMAC-SHA256 (600,000 to 10,000,000 iterations, 16-byte salt), the labels `labs-admin/model-unlock/v1` and `labs-admin/model-envelope/v1`, the official test vector | `AdminEnvelopeDecryptor` (tests: `AdminEnvelopeDecryptorTests`) |
+| Plaintext `{ v, envelopeId, configs: { <id>: { apiKey } } }`; `settings.endpoint` / `settings.deployment` of the default configuration of each kind | `AdminEnvelopeDecryptor` |
+
+Status: deployed on the hosted admin dashboard and checked end to end on 2026-10-26 (unlock with an access code, then Lab01 and Lab07 with the trainer's keys). A server without these routes answers 404: the tab then says *The trainer configuration is not available on this server yet*, and *My configuration* works as usual. The automated tests use the official test vector and an in-process fake of the admin dashboard (`FakeModelConfigServer`).
+
+## Interactive labs
+
+A lab that reads the console (`Console.ReadLine`) declares `"interactive": true` in `labs.json` (optionally `"inputIdleTimeoutSeconds"`, default 600).
+The labs themselves are not modified, and **`dotnet run` in a terminal is unchanged**.
+
+| Question | Answer |
+|---|---|
+| How does the dashboard know the program waits? | For interactive labs only, the runner sets `DOTNET_STARTUP_HOOKS` (the `LabInputHook` assembly, built next to the dashboard) and `LAB_DASHBOARD_RUN=1` on the `dotnet run` process. The hook runs inside the lab program (not in the `dotnet` CLI host), replaces `Console.In`, and writes an invisible signal `ESC ] lab;input;<n> BEL` on stderr just before each `ReadLine`. The runner removes it from the output and publishes `input-request`. The prompt is shown exactly when the program reads — never on a mere silence (a model call is silent too). |
+| Encoding | UTF-8 end to end (the hook reads stdin as UTF-8, also on Windows). A line ends with `\n` on every platform. |
+| Several reads | Numbered 1, 2, 3…; lines answer them in order. A line sent before the program asks waits in the pipe and answers the next read (type-ahead, at most 8 lines). |
+| End of input | **End input** closes stdin: the next `ReadLine` returns `null` (like `Ctrl+D`). |
+| Long waits | While a read is pending, the lab timeout (`timeoutSeconds`) is paused. A read unanswered for `inputIdleTimeoutSeconds` stops the run: *Timed out — no input received*. Cancel works at any moment. |
+| History and secrets | Typed lines are echoed (stream `stdin`) and saved in the history, masked like any output (a stored API key shows as `••••`). The checks still read the program's stdout only. |
+| Other labs | Stdin stays closed: `ReadLine` returns `null` at once, as before. |
+
+Not supported: `Console.ReadKey` (it throws when stdin is redirected) and programs that read `Console.OpenStandardInput()` directly or replace `Console.In` themselves (input reaches them, but no prompt is detected).
+
+## Labs run in pairs (companion)
+
+An A2A client needs a running server, and a server never exits: `Lab06_A2AClient` and `Lab06_A2AServer` declare a `companion` in `labs.json`.
+The labs are not modified, and **`dotnet run` in a terminal is unchanged**.
+
+| `role` | Run |
+|---|---|
+| `server` (Lab06_A2AClient) | build the lab and the companion → start the companion (`dotnet run --project <companion> --no-build`) → wait for a stdout line matching `readyPattern` (at most `readyTimeoutSeconds`) → run the lab → stop the companion (process tree killed). The checks and the token usage read the output of the lab. |
+| `client` (Lab06_A2AServer) | build both → start the lab → wait for `readyPattern` in the output of the lab → run the companion client to the end → stop the lab. The checks and the token usage read the output of the lab **then** of the companion (the server itself prints no model answer). |
+
+| Question | Answer |
+|---|---|
+| Which companion? | Always a project of the repository (validated like the lab projects), here the `Solution` of the other lab: your `Start` is checked against the reference. |
+| Ports | `environment` sets variables on **both** processes of the run (`A2AServer__BaseUrl`, `RemoteAgents__*__Url` = `http://localhost:5071`): no conflict with a server you started yourself on port 5000 (or with the macOS AirPlay Receiver, which also listens on 5000). They are shown in the log. |
+| Verdict | *Failed* at the run step when the companion server is not ready (*"The companion failed"*), when the lab (a server) exits or times out before it is ready (*"The lab (a server) never became ready"*, e.g. the delivered `Start`), or when the companion client exits with an error. |
+| Not supported | A companion for an interactive lab. |
+
+## Reset exercises
+
+To undo a mistake (an exercise run by accident, a `_StartCompleted/` folder left in a lab folder) or to start the course over.
+**Reset exercises…** (under the lab list) or **Reset this exercise…** (History tab of a lab) opens a dialog: choose **One exercise** or **Several or all**.
+Only the exercises with something to reset are listed: **in progress** or **completed** (a run of *My exercise*), or holding a `_StartCompleted/` folder. A never-started exercise is not listed (a lab with only *Reference solution* runs is *Not started*), and its History tab has no reset button.
+Each exercise is shown with its name (its lab folder, e.g. `Lab01-FirstBasicAIAgent`) and a **copy** button.
+
+| Question | Answer |
+|---|---|
+| What is deleted? | For each selected lab: **all its runs** (Start and Solution) in `Dashboard/.data/history.json`, and its `<lab folder>/_StartCompleted/` folder (git-ignored completed copy of `Start/`, often only MSBuild `obj/` leftovers). The lab then shows *Not started*, *No run yet* and an empty history. |
+| What is never touched? | `Start/` (your code, `bin/`, `obj/`), `Solution/`, the README files, `labs.json`, the settings (user secrets, `appsettings*.json`), `identity.json` / `outbox.json` / `standalone`, the other labs, any other file of the lab folder (`.tmp-*`…), the Docker containers of Lab05 / Lab12. |
+| How is it confirmed? | Before anything, the dialog shows what will be deleted per lab: runs per target, files, size and **source files** of `_StartCompleted/` (files outside `bin/` and `obj/`, with a warning: that completed copy of your code is deleted too). **One exercise**: type (or paste) its folder name (e.g. `Lab01-FirstBasicAIAgent`, case-sensitive), then confirm a second screen. **Several or all**: retype the random 5-character code shown on screen (no name to type), then confirm a recap of the consequences. The red button names the action and is never focused by default. |
+| Checked by the server too? | Yes: the preview issues a confirmation for exactly those labs, valid **10 minutes** and usable **once**; the reset needs the typed name for one lab, the code for several. Three wrong codes cancel it; a double click or a replayed request resets nothing twice; a lab whose run is in progress cannot be reset; one reset at a time. |
+| Which `_StartCompleted` is deleted? | Only a real folder named exactly `_StartCompleted` directly inside the lab folder of the catalog. A symbolic link or a junction is never followed nor deleted (the lab is *blocked*, remove the link by hand), nor a folder that contains a project of the catalog; links inside the folder are removed, never followed. |
+| Order and errors | The folder is deleted first, the runs only once it is gone (a lab never looks reset while its folder remains); the history is rewritten in one atomic write. A permission error is shown for that lab with the path, its runs are kept, and the other labs are reset. |
+| Verified? | After the reset, each lab is checked again (no run left, no folder, `Start` and `Solution` projects present): the summary says *Reset and verified*, *Already at zero* or *Not reset* with the reason. |
+| Trainer's dashboard | When you joined a workshop, a new `progress.snapshot` (authoritative) is sent, so the trainer sees *Not started* too. Nothing is sent when working alone. |
+
+## Journey
+
+A column left of the lab list (**vertical**) or a band above it (**horizontal**, everything on one line when the width allows) turns the progress into a route through the course. The switch in its header chooses the layout, remembered by the browser (`labbench.journeyLayout`); below 1280 px wide it is always the band. Its tiles adapt to the width they get (container queries).
+Everything is computed by the server from `Dashboard/.data/history.json` (`Journey/LearningJourney.cs`): nothing else is stored, a reset of exercises lowers it, and nothing is sent to the trainer.
+
+| Part | What it shows |
+|---|---|
+| Rings | Two concentric rings: outside, in green, the share of exercises completed; inside, in blue, the XP toward the next rank. Beside them, the exercises completed and the XP, then the XP still needed for the next rank and *How XP is earned*. |
+| Rank and XP | *Foundations* → *Tooling* (15 % of the course base XP) → *Integration* (35 %) → *Orchestration* (60 %) → *Mastery* (85 %). XP: 100 per Beginner exercise, 150 per Intermediate one, 200 per Advanced one; +50 when it passes on the first attempt, +25 when its solution was not run before; an exercise in progress earns `base × 0.5 × best checks / checks`. Running a solution never earns XP. |
+| Trajectory | One chip per exercise, numbered by its **step in the learning path** (the order of `labs.json`, from 1: the lab number is its folder, shown in the chip's tooltip), one group per **stage** — the milestones (checked when every exercise of the stage is completed): green *completed*, amber ring *in progress* (the share of checks of its best run), red with a dot *to resume*, blue pulse *running*, blue ring for the lab open on the right; a legend underneath. Selecting one opens the lab. *To resume* = passed before, but the latest attempt (a Start run not cancelled) failed or timed out: it still counts as completed, like in the lab list and on the trainer's dashboard. |
+| Next mission | The exercise in progress run most recently, else the first one to resume, else the next one to start, with **Continue** and the XP still within reach. |
+| Distinctions | *First steps*, *First try*, *No safety net* (completed without running its solution before), *Persistence* (3 unsuccessful attempts or more before passing), *Milestone cleared*, *Summit*; each medal shows how to earn it. |
+
+It refreshes when a run starts or ends, after a reset, when the page comes back to the front and every 20 seconds while it is visible (a run from another tab). A completed exercise, a new rank, a cleared milestone or a distinction is celebrated once, when it happens on the open page (a short notification, also announced to screen readers); never on load, on a language switch or after a reset. `prefers-reduced-motion` turns every animation off.
+
+## Reporting to the admin dashboard
+
+Optional. During a workshop, the trainer runs the **Admin Dashboard** (a separate application in its own repository, hosted on the web) and e-mails every developer an **invitation code** (or, as before, a plain workshop key).
+Once the developer joined, the local dashboard reports their progress to it, and the **Help / Je suis bloqué** button lets them raise a hand that the trainer sees at once.
+
+### First launch: join the workshop, or work on your own
+
+The first time the dashboard opens, a welcome dialog offers two choices:
+
+| Choice | What the developer enters | Result |
+|---|---|---|
+| **Join the workshop** | a **username** (2–32 characters, letters, digits, `.`, `_`, `-`; not necessarily a real name) and the **invitation code** e-mailed by the trainer, or a plain workshop key when the admin API key is already configured (the field is hidden when both the workshop key and the admin API key are already configured). The admin dashboard URL is shown, not asked: it is fixed in the project configuration | the dashboard generates a stable `userId`, registers on the server and starts reporting |
+| **Work on my own** | nothing | nothing is ever sent: no status pill, no Help button, no network call. The choice is remembered (`Dashboard/.data/standalone`) and the dialog does not come back |
+
+Both can be changed later in the *Workshop* tab of the settings: a developer working alone joins the workshop by entering a username and the invitation code (or the key); a username can be changed at any time, and a new invitation code can be pasted there too.
+Nothing has to be typed on the command line by the developer.
+
+### Configure it (trainer)
+
+The admin dashboard URL is **fixed in the project**: `Dashboard:Reporting:ServerUrl` in `LabDashboard/appsettings.json` (committed, so every developer gets it; `Dashboard__Reporting__ServerUrl` overrides it for a local test). It is not shown to developers and can never be changed in the UI; when it is empty, only *Work on my own* is offered.
+#### Invitation code
+
+The trainer sends **one invitation code** by e-mail (and shows it on the last slide of the training presentation): it carries an API key and the workshop key, so that a developer joins without editing any file nor restarting anything. Its format is `LB1.` followed by the base64url (no padding) of the UTF-8 JSON `{"apiKey":"…","workshopKey":"…"}`, 1,024 characters at most. The trainer copies it from the **Workshops** page of the admin dashboard (*Invitation*): its API key is a **workshop access key**, valid for that workshop only and revoked when the trainer regenerates the invitation — never the server's API key.
+
+With a server API key instead, the code can also be built from a computer:
+
+```bash
+dotnet run --project Dashboard/LabDashboard -- invitation
+```
+
+The command asks for the admin API key and the workshop key without echoing them (or reads them, one per line, from a pipe), prints the code alone on the standard output, and exits: it starts no dashboard, calls no network, writes nothing to disk, never takes the keys as arguments (they would stay in the shell history) and refuses empty values or values with whitespace.
+The workshop key to give it is the code of the workshop on the admin dashboard's **Workshops** page (`XXXX-XXXX`, copied as is: the admin ignores case, dashes and spaces).
+That code alone does not let a developer join: the admin API refuses every call without its API key, so send the invitation code, not the admin's *Copy student instructions* text.
+The code is as sensitive as the two keys: e-mail it to the participants, never post it in a public channel.
+
+Pasted in *Join the workshop* or in the *Workshop* tab, the code stores the admin API key as `Dashboard:Reporting:ApiKey` and the workshop key as `Dashboard:Reporting:WorkshopKey` in the shared user-secrets file, in one write; reporting and the trainer's AI model configurations use them at once. A malformed code is refused on the field (`invalid`), and so is a code of another version (`LB2.…`: `unsupportedVersion`, update the repository); nothing is stored then. A plain workshop key, without the prefix, works only when the admin API key is already configured on this computer (`LABS_ADMIN_API_KEY`, `appsettings.Local.json` or an earlier invitation); otherwise it is refused on the field (`apiKeyRequired`) and nothing is stored, rather than joining a reporting that would stop at once on *API key missing*. Like the admin server, the dashboard removes every blank of a plain workshop key (spaces, tabs, line breaks of a code copied by hand from the admin's boxes) before checking and storing it: `QP8G 9YQ2` is stored and sent as `QP8G9YQ2`; case and dashes are kept, the server normalizes them. What remains must be visible ASCII, otherwise the key is refused (`invalid`).
+
+The workshop key can also be distributed as a command:
+
+```bash
+cd Dashboard/LabDashboard
+dotnet user-secrets set "Dashboard:Reporting:WorkshopKey" "<key given by the trainer>" --id microsoft-agent-framework-learninglabs
+```
+
+The admin API also requires a shared **API key**: the dashboard sends it as the `X-API-Key` header on every `/api/v1/*` request (all but `/api/v1/health`), never in the URL.
+It comes **on top of** the workshop key (sent as `X-Workshop-Key` at registration) and of the dev token (`Authorization: Bearer`), never instead of them: the API key alone is rejected everywhere.
+It normally comes with the [invitation code](#invitation-code); it is never shown in the UI (only *configured* and where from) nor written to the logs. It is resolved at each pass of the reporting loop, in this order:
+
+1. `LABS_ADMIN_API_KEY` (environment variable, for a local test);
+2. the shared user-secrets file (`Dashboard:Reporting:ApiKey`, written by an invitation code);
+3. `appsettings.Local.json` (git-ignored) or `appsettings.json`:
+
+```json
+// Dashboard/LabDashboard/appsettings.Local.json — git-ignored, next to appsettings.json
+{ "Dashboard": { "Reporting": { "ApiKey": "<API key of the admin dashboard>" } } }
+```
+
+Without a key, reporting stays off and the dashboard says so: the welcome dialog shows a warning before anything is typed (only the invitation code can join), one warning is logged once joined, and the status pill reads *Reporting · API key missing* (its tooltip: nothing is reported, paste the invitation code in Settings → Workshop); pasting an invitation code starts it without a restart.
+A key refused by the server (`401 invalidApiKey`) stops reporting at once, without retrying (30 failures per minute block the machine on the server side), until a new invitation code is pasted in the settings (or the dashboard is restarted with a valid key).
+
+| Setting (`Dashboard:Reporting`) | Where | Default |
+|---|---|---|
+| `ServerUrl` | `appsettings.json` (fixed by the project; `Dashboard__Reporting__ServerUrl` overrides it for a local test). Never editable in the UI | `https://labs-admin-dash.vercel.app` (the hosted admin dashboard) |
+| `ApiKey` | `LABS_ADMIN_API_KEY` > the shared user-secrets file (`Dashboard:Reporting:ApiKey`, written by an invitation code) > `appsettings.Local.json` (git-ignored) / `appsettings.json`. Sent as `X-API-Key`; never displayed in the UI | none (reporting off) |
+| `WorkshopKey` | `Dashboard__Reporting__WorkshopKey` > the shared user-secrets file (`Dashboard:Reporting:WorkshopKey`, written by the UI, same file as the Azure OpenAI settings) > `appsettings.json` | none |
+| `HeartbeatSeconds`, `FlushIntervalSeconds`, `RequestTimeoutSeconds` | `appsettings.json` | 60, 5, 10 |
+
+When the developer joins, the dashboard generates a stable **`userId`** (UUID), registers the pair on the server and stores the identity and the **dev token** returned by the server in `Dashboard/.data/identity.json` (git-ignored, private to the user).
+The top bar shows a status pill: green *Reporting* (connected), amber *offline, retrying* (events are kept and sent later), red *rejected* (wrong identity: check the settings). A key problem is named on the pill itself: *API key missing*, *API key refused* (paste the trainer's invitation code in the *Workshop* tab) or *workshop key refused*. Clicking the pill opens the *Workshop* tab.
+
+### What is sent, what is not
+
+| Sent (`POST /api/v1/events`, `userId` + `username` in every request) | Never sent |
+|---|---|
+| `catalog.synced` (the labs of `labs.json`, with their `bonusScenarios`), `progress.snapshot` (state of each lab computed from the local history: not started / in progress / completed, run counts, last result, tokens reported; `bonusCompletedAt` once the bonus scenarios passed too — the state stays `completed`) | source files, the solution, the run output |
+| `lab.opened` (once per lab per 5 min), `run.started`, `run.finished` (status, failure stage, summary, durations, exit code, checks passed/failed, the scenarios run and their result — `bonus: true` on an optional scenario —, tokens reported; a run limited to some scenarios does not complete the exercise on the admin dashboard, the `progress.snapshot` that follows does), `solution.viewed` | the AI models (endpoints, deployments, **API keys**, trainer configurations, access code); the workshop key (only as a header at registration); the admin API key (only as the `X-API-Key` header) |
+| `settings.changed` (`authMode` only: `apiKey` / `entraId` / `notConfigured`), `heartbeat` every 60 s (`browserConnected`, `activeRunId`) | real name, e-mail, machine name, paths (only the platform, e.g. `macOS`, and the dashboard version) |
+| help requests (`POST /api/v1/help-requests`: lab, optional message) and their cancellation | typed input of interactive labs |
+
+### Reliability
+
+- Reporting **never delays or fails a run**: the runner only enqueues; a background loop sends batches (100 events at most) every `FlushIntervalSeconds`.
+- Server down: events wait in `Dashboard/.data/outbox.json` (500 at most, the oldest are dropped; the next `progress.snapshot` restores a consistent state) and are sent, in order, when it is back (exponential backoff 5 s → 60 s; `Retry-After` honoured on every route; `503 unavailable` retried with backoff).
+- A refused API key (`401 invalidApiKey`) or workshop key (`401 invalidWorkshopKey`) stops all requests instead of retrying, until a new invitation code (or, for the workshop key, a new key) is entered in the settings.
+- Each event has a unique id: a batch sent twice (lost answer) is ignored by the server, never applied twice.
+- A dev token refused by the server triggers one new registration with the workshop key.
+- While a help request is active, its status is read back every 10 s: *waiting for the trainer* → *taken into account* → *resolved* (with the trainer's note), or *cancelled* by the developer ("I'm unblocked").
+
+### Reset the identity
+
+Delete `Dashboard/.data/identity.json` (and `outbox.json`, and `standalone` if present): the next launch shows the welcome dialog again and a developer who joins appears as a **new** developer on the admin (the trainer can archive the old one). To change only the username, use the settings.
+
+## Reference catalog on the admin dashboard
+
+The trainer's admin dashboard lists the labs of a **reference catalog**, published by the trainer from `LabDashboard/labs.json`:
+the same labs, in the same order (the learning path), with the same titles and stages. Your dashboard still sends `catalog.synced`
+when you join a workshop: the admin uses it to know which labs you have on your computer.
+
+> **Never rename the `id` of a lab.** The progress recorded by the participants is attached to it: a renamed id is a new lab on
+> the admin, without its history. To change what is shown, change `title`, `number` or `summary`.
+
+## Scenario selection
+
+The rules are in **one file**, `CommonUtilities/LabScenarios.cs`, compiled by the labs (through `CommonUtilities`) and by the dashboard
+(`<Compile Include="..\..\CommonUtilities\LabScenarios.cs" Link=... />` in `LabDashboard.csproj`): there is no second implementation.
+
+- **Scenarios** are the `#region Scenario N: Title` blocks of the `Program.cs` next to the project. `N` is the identifier everywhere: `ShouldRunScenario(N)`,
+  `--scenarios N`, the `=== Scenario N: … ===` header, the check ids `scenarioN-…`, the API.
+- **Implemented**: the code of the block, and the code before the first scenario (the setup), are no longer the code delivered with the exercise.
+  The code is compared without its comments and white space (removing a TODO, re-indenting changes nothing; writing code does) with the
+  fingerprints of the delivered exercise, `<lab folder>/exercise-fingerprints.json`. A block whose delivered code is already the solution's
+  (Lab13: the client calls are provided) depends on the setup only. A scenario that is not implemented **never runs**: when a request names one, or a
+  scenario that requires one, it is left out and the other scenarios run (the lab prints `>>> Scenarios not run: …`, the run records it).
+  After changing a Start or a Solution, regenerate the fingerprints from the exercises as delivered: `dotnet run -- exercise-fingerprints`
+  (in `Dashboard/LabDashboard`); the catalog test fails while they are out of date.
+- **Requires**: a `// Requires scenario N` comment in a block; asking for the block also runs scenario N.
+- **Lab side**: `ScenarioSelection scenarioSelection = ScenarioSelection.FromArgs(args);` then `ShouldRunScenario(n) => scenarioSelection.ShouldRun(n)`.
+  It reads `--scenarios 1,3` / `--scenario 2` / `--scenarios implemented` / `--list-scenarios` (the other arguments are left to the lab),
+  prints `>>> Scenarios to run: …` and, when a scenario starts, `>>> Running scenario N: Title`.
+- **Dashboard side**: the run request is checked against the same `Program.cs` (`LabScenarios.Plan`) and passed as `-- --scenarios 1,3`. The `>>>` lines of
+  the lab output tell which scenarios started: an error (exit code, timeout) is attached to the scenario that was running, the next ones are *Not run*.
+  These lines are removed from the output before the checks and the token usage are computed.
+- **Checks**: a check belongs to the scenario of its id (`scenario2-usage`: scenario 2) or to the scenarios listed in its `"scenarios"` field; it is evaluated only
+  when they all ran. A check of one scenario (by its id) reads **the output of that scenario only**, from its `>>> Running scenario N` line to the next one
+  (an output without these lines, from a program written before the selection, is split on the `=== Scenario N` headers); a check that lists its scenarios
+  or names none reads the whole output, the output of a companion client included. A check of no scenario (`config`) belongs to the whole run: when it
+  fails, every scenario that ran fails.
+- **Progress**: an exercise is *Completed* once every scenario passed in a Start run (`ExerciseProgress`), in one run or across several — the lab list, the journey
+  and the progress sent to the admin dashboard use this rule. A run recorded before the scenario selection completes it when it passed, as before.
+- **Manual validation**<a id="manual-validation"></a>: when a scenario failed only because its output differs from the reference in a minor way, the
+  learner can validate it with the small button before its last result (Run tab, exercise only), and cancel it with the same button. It is stored on
+  the scenario result in the history (`validatedAt`); the result of the checks (`status` of the scenario and of the run) is never changed, so
+  cancelling gives it back. A validated scenario counts as passed everywhere (`ExerciseProgress.IsValidated` / `EffectiveStatus`): Scenarios list,
+  default selection, lab progress, journey, and the `progress.snapshot` sent to the admin dashboard, with no flag telling it apart from a pass.
+  Only a failed scenario of a Start run whose program ran to the end (failure stage `checks`) can be validated: not a build error, a crash, a timeout
+  or a scenario that did not run. Resetting an exercise removes its validations with its runs.
+- **Bonus scenarios** (`"bonusScenarios": [4, 5]` in `labs.json`, marked `// Bonus scenario` in both `Program.cs`, checked by `BonusScenariosTests`): optional.
+  The exercise is *Completed* once every **other** scenario passed, and *Completed+* (`completedPlus` in `GET /api/labs`, `bonusCompleted` in the journey,
+  +50 XP) once the bonus scenarios passed too. An attempt whose only failures are bonus scenarios still passed the exercise: it never puts a lab back to
+  *To resume*, nor costs *first try*. The default selection ticks a bonus scenario only once it is written. A run recorded before the scenario selection never
+  completes a bonus. Labs with a bonus: Lab04 (4, 5), Lab05 (4, 5), Lab07 (5, 6) — the Responses API scenarios.
+
+## The learning path
+
+`labs.json` is the **single source of truth** of the learning path (specs/learning-path-stages): its `stages` array names the stages, and the order
+of its `labs` array is the order of the path. Every support reads it — nothing sorts the labs by number, track or title:
+
+| Support | Reads the path from |
+|---------|---------------------|
+| Lab Bench (this dashboard) | `labs.json`, at start-up |
+| Trainer's admin dashboard | the published catalog and each developer's `catalog.synced`, both built from `labs.json` (each lab carries its `stage`) |
+| Training roadmap (`Roadmap-Formation-Session2.html`) | a JSON block generated from `labs.json` by `python3 Dashboard/tools/generate-roadmap.py` |
+| Root README, *Learning Path* | hand-written, checked by a test |
+
+```jsonc
+"stages": [
+  { "id": "build", "title": "Build an agent", "translations": { "fr": { "title": "Construire un agent" } } },
+  // ...
+  { "id": "further", "title": "Going further", "optional": true, "translations": { "fr": { "title": "Pour aller plus loin" } } }
+],
+"labs": [ { "id": "azureopenai-lab01", "track": "Azure OpenAI", "stage": "build", /* ... */ } ]
+```
+
+The catalog is refused at start-up when a lab has no known stage, when a stage has no lab, or when the labs are not listed stage by stage
+in the order of the stages. `dotnet test` (`LearningPathTests`) fails when the roadmap or the README disagree with `labs.json`.
+
+## Add a lab
+
+No code change is needed: add an entry to `LabDashboard/labs.json` **at its place in the learning path**, with its `stage` (see `azureopenai-lab02`, `azureopenai-lab03`, `azureopenai-lab08` or, for an interactive lab, `azureopenai-lab09` for complete examples), add its id to the path of `LearningPathTests`, then regenerate the training roadmap (`python3 Dashboard/tools/generate-roadmap.py`) and add the lab to the *Learning Path* diagram of the root README:
+
+```jsonc
+{
+  "id": "multiagentsystem-lab01",
+  "number": "01", "track": "Multi-Agent System", "stage": "multi-agent", "level": "Intermediate",
+  "title": "...", "summary": "...", "objectives": ["..."],
+  "path": "LearningLabs/MultiAgentSystem/Lab01-UseAgentAsTool",
+  "startProject": "Start/<Project>.csproj",
+  "solutionProject": "Solution/<Project>.csproj",
+  "timeoutSeconds": 180,
+  "interactive": false,              // true when the program reads Console.ReadLine
+  "expectations": [
+    { "id": "scenario1", "description": "Scenario 1 - the agent answered with the capital of France", "pattern": "(?i)\\bParis\\b" }
+  ],
+  "translations": {
+    "fr": { "title": "...", "summary": "...", "level": "Débutant", "objectives": ["..."], "checks": { "scenario1": "Scénario 1 : réponse reçue" } }
+  }
+}
+```
+
+Write each scenario of `Program.cs` (Start and Solution) as a `#region Scenario N: Title` block, add `// Requires scenario N` when a scenario needs another
+one in the same run, then generate the fingerprints of the delivered exercise: `dotnet run -- exercise-fingerprints` (the catalog test checks that every
+Start scenario counts as not implemented and every Solution scenario as implemented). A check made on the output of several scenarios, or on the output of a
+companion, declares its scenarios: `"scenarios": [1, 2]` (see the `comparison-*` checks of `azureopenai-lab08`, and the companion checks of `azureopenai-lab06-server`).
+
+Once merged into `main`, the lab is published to the admin dashboard (see [Reference catalog on the admin dashboard](#reference-catalog-on-the-admin-dashboard)); its `id` must never change afterwards.
+
+`pattern` is a .NET regular expression evaluated (multiline) on the standard output of its scenario (see [Scenario selection](#scenario-selection)).
+Write each check so that it fails on the delivered exercise (`Start`) and passes on the `Solution`, and so that it judges **what the scenario does, never how
+it presents it**:
+
+- check data that only a working implementation can produce (a value a tool returns, an id it generates, a fact of the knowledge base, a backreference
+  to a value printed twice), or the lines of a helper the exercise **provides** (`WriteRestaurant`, `WriteToolCalls`, `WriteHotels`, the `[Skill]`, `[Memory]`,
+  `[Delegation]` loggers...): they show that the typed object or the call exists. When the result is only visible through text the learner writes, make the
+  exercise display it with a provided helper (as `WriteHotels` for the hotels parsed back from CSV in Lab08);
+- never require the `=== Scenario N` header, a separator, a title, a label or a question the learner writes in the scenario block: no `^Agent: `, no
+  `Deserialized response:`; when the learner writes a decision (Multi-Agent Lab01: sent / held back), match its meaning (`\bsent\b`, `\b(?:held|human)\b`),
+  case-insensitive, never the exact sentence;
+- no scoping is needed: the token usage of a scenario is `(?i)input tokens:?\s*\d+` (its wording is the one convention kept: the dashboard reads it).
+
+`OutputAnalyzerTests` checks this for every lab: each check passes on the real output of the Solution **and** on the same output without the texts
+written by the Write calls of the scenario blocks (`WithoutPresentation`), fails on the delivered exercise and on known wrong implementations.
+For labs with tools, check data that only a tool can produce (a value of the tool's data set, an id generated by the tool, a line written by a middleware), not only the presence of an answer.
+For labs that call a remote agent, check what only the remote tools can give (a signed key accepted, a tampered one rejected, see `azureopenai-lab06-client`).
+For labs with memory or sessions, check what only the history can give (a name given in an earlier turn), and use a backreference to check that a value printed twice is the same (e.g. the key of a restored session, see `azureopenai-lab05`).
+For labs with RAG, check the ranking of the search (the expected entry first), the lines written by the search (tool call, provider search input and results) and a fact that only the knowledge base contains (a deadline, a delay), not the presence of an answer (see `azureopenai-lab07`).
+For labs that compare formats or costs, check the measured result itself: the expected record first in the answer, the answer in the requested format (header line), and the sign of the difference in the comparison table (see `azureopenai-lab08`). A comparison row such as `Input tokens  3180  1421  -55%` has no colon, so the token usage parser ignores it.
+For labs with tool approvals, check the request itself (function and arguments), the decision, the tool result that only an executed tool can print, and that a rejected call was **not** executed (a negative lookahead on the scenario block, see `azureopenai-lab09`); use lookaheads when the model may order the requests differently from one run to another.
+For labs that expose an agent as an MCP tool, check what the MCP client sees (the tool name and its `query` parameter), data that only the tools of the exposed agent know in the tool result (an employee name for an id), the log line a stdio server writes on stderr (relayed by the lab as `[server]`), and the tool call of an agent that uses the MCP tool (see `azureopenai-lab10`).
+For labs with an `AIContextProvider`, make the provider write what it does while the agent runs (memories added before the model call, memories extracted after it) and check those lines in order, the data stored for the scope (the user) and what only the provider can give in a **new** session: the name and a preference of the user, with lookaheads over a multi-line answer, bounded by the next block (see `azureopenai-lab12`). Accept any of several memory-only details (`vegetarian`, `tofu`, `Alps`...): the model words its answer differently from one run to another.
+For labs that log HTTP traffic, check the logged request itself (the URL, a header added by the handler, the status and duration of the response), that no credential header is printed in clear (a lookahead anchored at `\A` on the whole output, so the pattern is tried once), and what only the second request of a function call contains (`"role": "tool"` with the tool result), not only the agent answer (see `azureopenai-lab11`).
+
+### Provided texts (LabPrompts.cs)
+
+The learner never writes the texts sent to the model: every lab of the catalog provides them, so the whole room runs the same agents with the same questions and
+gets answers comparable with the README's Expected Output. Reference implementation: `LearningLabs/AzureOpenAI/Lab01-FirstBasicAIAgent`.
+
+- **One file per lab project**, `LabPrompts.cs`, byte-identical in `Start/` and `Solution/`, in the namespace of the project, headed by the
+  "PROVIDED - do not edit" banner and its explanation (copy Lab01's). A lab with two projects (Lab06 client and server) has one file per project, holding only the texts that project uses.
+- **Shape**: one nested static class per agent, `Agents.<Agent>.Name` / `.Instructions` (and `.Description` when the agent is exposed as a tool or an A2A card);
+  `Questions.<Name>` for every question or user message, follow-ups included; `SystemMessages.<Name>` when the lab has some; any other text sent to the model
+  in a class with an explicit name (`ToolDescriptions`, `ContextTexts`, `JudgeCriteria`...). All `const string`, each with an XML `<summary>` naming the scenario(s) that use it.
+  One constant per distinct value, never a computed string; a text with a run-time value is a format string, filled in `Program.cs` with
+  `string.Format(CultureInfo.InvariantCulture, ...)`. No constant for what is absent on purpose (an agent with no name or no instructions).
+- **What is provided**: agent names, instructions, system messages, questions, descriptions, judge criteria, injected contexts — anything that is not
+  Agent Framework knowledge. A text stays for the learner to write **only when writing it is the objective of the TODO** (Lab03 TODO 11, the refusal message;
+  Lab07 TODO 15, the Q:/A: text), and the lab's README says so. Console titles and labels are not concerned. Data files (`Data/*.json`, `skills/**/SKILL.md`) stay where they are.
+- **Verbatim**: the texts keep their wording: the checks and the README Expected Output were produced with them.
+- **Solution** uses the constants everywhere, no such string literal left. **Start**: each TODO names the `Agents.<Agent>` class and the `Questions.<Name>` (or other)
+  constant to use, hints show constants, never the literal text, and the scenario code stays commented out. **README**: the "texts are provided" paragraph
+  under "Complete the Program.cs", hints that cite constants, and `LabPrompts.cs` in "Project Structure" and first in "Provided Files".
+- **Fingerprints**: `LabPrompts.cs` holds only constants, but any change to the executable code of a Start (a provided `const`, a format call, a using) changes
+  its fingerprints: regenerate them with `dotnet run -- exercise-fingerprints` and check that the Start still lists every scenario as not implemented.
+
+MultiAgentSystem `Lab02_OrchestrationSequential` and `Lab03_OrchestrationConcurrent` follow the convention since their migration (agent names and instructions in `LabPrompts.cs`; Lab02's input is the transcript in `Data/`).
+
+## Tests
+
+```bash
+cd Dashboard
+dotnet test
+```
+
+Unit tests cover the console decoder (spinner, streaming, CRLF split across reads), the token usage parser,
+the checks (including the real Lab02, Lab03, Lab04, Lab05, Lab06, Lab07, Lab08, Lab09, Lab10, Lab11 and Lab12 checks against a solution and a delivered-exercise output, Lab03 / Lab04 answers given without calling the tools, a Lab05 conversation that lost its history, Lab06 answers that do not come from the remote tools, Lab07 answers that do not come from the FAQ, Lab08 answers in the wrong format or without token savings, Lab09 approvals that were not honored, Lab10 answers that do not come from the exposed agent, a Lab11 handler that only forwards the requests, prints a credential, or a model that answers without calling the tool, and a Lab12 context provider that is not written or never gives the stored memories to the model, and recall answers with the name only), the build diagnostics,
+the catalog path and companion validation, the French check descriptions, the localized README lookup, the Azure OpenAI settings store
+(format, preserved entries, precedence, validation, permissions — always in a temporary folder, never the real user-secrets file)
+and the masking of the API key, including an end-to-end run of a throwaway project that prints it;
+the interactive input: signal parsing (split signals, mixed stderr), numbering, type-ahead, validation, end of input, the paused lab timeout,
+the reporting: identity file (creation, permissions, validation), outbox (order, cap, persistence), progress snapshot, and the client against an in-process fake of the admin API (registration with the workshop key, `X-API-Key` on every `/api/v1` route but health (header only, from the configuration or `LABS_ADMIN_API_KEY`), missing or refused API key stopping without retry, refused workshop key, the API key never in logs, status or local files, batches of 100 in order, wrong key, `Retry-After`, lost answer, re-registration on a rejected token, server down then back, help request sent / acknowledged / resolved / cancelled / adopted, settings changes, and a real run against a server that never answers — same verdict, no delay),
+the companions: end-to-end runs of throwaway server and client projects (a server ready before the lab and stopped after it, a lab that is a server checked with its client, a lab or a companion server that exits before it is ready);
+the scenario selection (the reading of `Program.cs`, the code delivered or written in a scenario or in the setup (comments and layout ignored), the fingerprints of every catalog lab up to date, required scenarios, the command-line option and its round trip, the checks and the error attached to each scenario, completion across partial runs, every catalog lab with the same scenarios in Start and Solution, all to implement in Start, and an end-to-end run of a throwaway lab using the real `ScenarioSelection`, limited to one scenario, then with a scenario that throws);
+the checks of every lab judged on what the scenario does: each on the output of its own scenario, passing on the real Solution output without its presentation (no header, title, label or separator written by the scenario blocks), failing on the delivered exercise and on known wrong implementations (Lab01 included, from a real run);
+the reset of exercises, in a temporary repository (preview counts and source files, the name for one lab and the code only for several, single use, expiry, three wrong codes, a running lab, a symbolic link never followed, a catalog project inside `_StartCompleted`, a folder that cannot be deleted keeping its runs, `Start/`, `Solution/` and the other labs byte-for-byte unchanged, the snapshot sent only when joined, and a reset lab that builds and runs again);
+the journey (states with Solution-only and cancelled runs, *to resume*, partial XP, both bonuses, persistence, rank thresholds, milestones and distinctions, next mission order, an empty catalog);
+the AI models (an existing configuration taken over without a write, both profiles kept across mode switches, the embedding on the LLM's resource or its own, refused incomplete profiles and providers, the trainer configuration identity, keys never in a status) and the trainer flow, against an in-process fake of the admin dashboard and the official test vector: the envelope protocol (the vector opened with the code however it is typed, every tampering failing on the tag, unsupported parameters refused before any derivation, the exact unlock body), the retry and refusal rules, one envelope held per unlock, the keys saved for the ticked models only, the custom profiles untouched, the code and the keys never in an answer or a log, and the mock;
+the invitation code (format, every refusal, the trainer's command called directly and as `dotnet LabDashboard.dll invitation`) and the admin API key it brings, used by the reporting and the trainer flow without a restart;
+and end-to-end runs of a throwaway project answering three `ReadLine` calls (non-ASCII text, masked secret), closing the input, timing out without an answer, and running unchanged when the lab is not interactive.
+
+## Limitations
+
+- Token usage is only what the exercise prints; model calls whose usage is not printed are not counted. No cost estimate.
+- AI models: Azure OpenAI only (the labs only call Azure OpenAI); the trainer's configuration needs the model configuration routes of the admin dashboard (contract v1) and an access code created by the trainer.
+- Reporting: a help request clicked while the admin server is down is kept in memory only (it is sent when the server answers, but lost if the dashboard is restarted before); copying `identity.json` to another machine makes both report as the same developer.
+- One run at a time (the labs share `CommonUtilities`, parallel builds would conflict). A companion is part of the run, not a second run.
+- A scenario is *implemented* as soon as its code differs from the delivered one: a scenario the learner started but did not finish runs by default, and its checks tell what is missing.
+- The scenario titles come from `Program.cs` and are shown in English.
+- Interactive labs must be declared `"interactive": true`; `Console.ReadKey` is not supported (see [Interactive labs](#interactive-labs)).
+- Colors of `ColoredConsole` are lost: .NET does not emit them when the output is redirected.

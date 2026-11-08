@@ -1,0 +1,6 @@
+# Only what the image needs, without the build outputs of the host
+*
+!CommonUtilities/
+!LearningLabs/AzureOpenAI/Lab16_RestApiMCPServer/
+**/bin/
+**/obj/

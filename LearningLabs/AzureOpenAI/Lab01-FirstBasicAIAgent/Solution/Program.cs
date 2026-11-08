@@ -1,0 +1,238 @@
+using System.ClientModel;
+using System.ClientModel.Primitives;
+using Azure.Identity;
+using Microsoft.Agents.AI;
+using OpenAI;
+using OpenAI.Chat;
+using OpenAI.Responses;
+using AIExtensions = Microsoft.Extensions.AI;
+using CommonUtilities;
+
+using FirstBasicAIAgent;
+
+// ============================================
+// SCENARIO SELECTION - Choose which scenarios to run
+// ============================================
+// dotnet run                          -> the implemented scenarios (a scenario whose code is still the delivered one is left out)
+// dotnet run -- --scenarios 2         -> scenario 2 only (and the scenarios it requires)
+// dotnet run -- --scenarios 1,3       -> scenarios 1 and 3
+// dotnet run -- --list-scenarios      -> the scenarios of this lab and their state
+ScenarioSelection scenarioSelection = ScenarioSelection.FromArgs(args);
+// ============================================
+
+bool ShouldRunScenario(int scenario) => scenarioSelection.ShouldRun(scenario);
+
+#region Setup: Configuration and Client Initialization
+
+// Step 1: Load Azure OpenAI settings from configuration
+var settings = ConfigurationHelper.GetAzureOpenAISettings();
+Console.WriteLine($"Endpoint: {settings.Endpoint}");
+Console.WriteLine($"Deployment: {settings.ChatDeploymentName}");
+
+// Step 2: Create an OpenAIClient that targets the Azure OpenAI v1 endpoint (https://<resource>.openai.azure.com/openai/v1/)
+// - API key when one is configured
+// - otherwise Microsoft Entra ID: DefaultAzureCredential + BearerTokenPolicy (scope https://ai.azure.com/.default)
+// WARNING: DefaultAzureCredential is convenient for development. In production, prefer a specific credential
+// (e.g. ManagedIdentityCredential) to avoid latency and unintended credential probing.
+OpenAIClientOptions clientOptions = new() { Endpoint = AzureOpenAIEndpoint.ToV1Uri(settings.Endpoint) };
+
+// The OpenAIClient(AuthenticationPolicy, ...) constructor is still flagged [Experimental] (OPENAI001) by the OpenAI SDK,
+// although it is the pattern documented by Microsoft for Entra ID with the Azure OpenAI v1 API.
+#pragma warning disable OPENAI001
+OpenAIClient client = !string.IsNullOrWhiteSpace(settings.APIKey)
+    ? new OpenAIClient(new ApiKeyCredential(settings.APIKey), clientOptions)
+    : new OpenAIClient(new BearerTokenPolicy(new DefaultAzureCredential(), "https://ai.azure.com/.default"), clientOptions);
+#pragma warning restore OPENAI001
+
+// Step 3: Get a ChatClient (Chat Completions API) for the deployment
+ChatClient chatClient = client.GetChatClient(settings.ChatDeploymentName);
+
+#endregion
+
+#region Scenario 1: Basic Agent - Simple prompt with default settings
+
+if (ShouldRunScenario(1))
+{
+    ColoredConsole.WriteDividerLine();
+
+    // Step 1: Create a basic AI Agent from the ChatClient (no instructions, no name)
+    AIAgent basicAgent = chatClient.AsAIAgent();
+
+    // Step 2: Run the agent with a simple string prompt (with spinner to show loading)
+    AgentResponse basicResponse = await basicAgent.RunAsync(Questions.CapitalOfFrance).WithSpinner("Running agent");
+
+    // Step 3: Display the response
+    ColoredConsole.WriteInfoLine("=== Scenario 1: Basic Agent ===");
+    ColoredConsole.WritePrimaryLogLine(basicResponse.Text);
+}
+
+#endregion
+
+#region Scenario 2: Agent with Instructions - Custom behavior and identity
+
+if (ShouldRunScenario(2))
+{
+    ColoredConsole.WriteDividerLine();
+
+    // Step 1: Create an AI Agent with specific instructions and a name
+    AIAgent geographyAgent = chatClient.AsAIAgent(
+        instructions: Agents.Geography.Instructions,
+        name: Agents.Geography.Name);
+
+    // Step 2: Run the agent with a geography-related question (with spinner to show loading)
+    AgentResponse geographyResponse = await geographyAgent.RunAsync(Questions.SurfaceAreaOfFrance).WithSpinner("Running agent");
+
+    // Step 3: Display the response
+    ColoredConsole.WriteInfoLine($"=== Scenario 2: Agent with Instructions ({geographyAgent.Name}) ===");
+    ColoredConsole.WritePrimaryLogLine(geographyResponse.Text);
+}
+
+#endregion
+
+#region Scenario 3: Using ChatMessages - Fine-grained control with message roles
+
+if (ShouldRunScenario(3))
+{
+    ColoredConsole.WriteDividerLine();
+
+    // Step 1: Create an AI Agent with specific instructions and a name
+    AIAgent geographyAgent = chatClient.AsAIAgent(
+        instructions: Agents.Geography.Instructions,
+        name: Agents.Geography.Name);
+
+    // Step 2: Create a system message to refine the agent behavior for this run only
+    // (system messages must always be written by the developer, never built from end-user input)
+    AIExtensions.ChatMessage systemMessage = new(
+        AIExtensions.ChatRole.System,
+        SystemMessages.GeographyExpert);
+
+    // Step 3: Create a user message with a geography question
+    AIExtensions.ChatMessage userMessage = new(
+        AIExtensions.ChatRole.User,
+        Questions.NeighborsOfFrance);
+
+    // Step 4: Run the agent with a collection of ChatMessages (with spinner to show loading)
+    AgentResponse chatMessageResponse = await geographyAgent.RunAsync([systemMessage, userMessage]).WithSpinner("Running agent");
+
+    // Step 5: Display the response
+    ColoredConsole.WriteInfoLine("=== Scenario 3: Using ChatMessages ===");
+    ColoredConsole.WritePrimaryLogLine(chatMessageResponse.Text);
+}
+
+#endregion
+
+#region Scenario 4: Get consumed tokens from the agent response
+
+if (ShouldRunScenario(4))
+{
+    ColoredConsole.WriteDividerLine();
+
+    // Step 1: Create an AI Agent with specific instructions and a name
+    AIAgent colorDecoAgent = chatClient.AsAIAgent(
+        instructions: Agents.ColorDecorator.Instructions,
+        name: Agents.ColorDecorator.Name);
+
+    // Step 2: Run the agent with a color-related question (with spinner to show loading)
+    AgentResponse colorResponse = await colorDecoAgent.RunAsync(Questions.ColorsMatchingBlue).WithSpinner("Running agent");
+
+    // Step 3: Display the response
+    ColoredConsole.WriteInfoLine("=== Scenario 4: Get consumed tokens from the agent response ===");
+    ColoredConsole.WritePrimaryLogLine(colorResponse.Text);
+
+    // Step 4: Display the consumed tokens
+    ColoredConsole.WriteDividerLine();
+    ColoredConsole.WritePrimaryLogLine("Token Usage: ");
+    ColoredConsole.WriteSecondaryLogLine($"  Input tokens: {colorResponse.Usage?.InputTokenCount}");
+    ColoredConsole.WriteSecondaryLogLine($"  Output tokens: {colorResponse.Usage?.OutputTokenCount}");
+    // Reasoning models spend part of the output tokens on hidden reasoning (null/0 for non-reasoning models)
+    ColoredConsole.WriteSecondaryLogLine($"  Reasoning tokens (included in output): {colorResponse.Usage?.ReasoningTokenCount ?? 0}");
+    ColoredConsole.WriteSecondaryLogLine($"  Total tokens: {colorResponse.Usage?.TotalTokenCount}");
+}
+
+#endregion
+
+#region Scenario 5: Streaming - Display the response while it is generated
+
+if (ShouldRunScenario(5))
+{
+    ColoredConsole.WriteDividerLine();
+
+    // Step 1: Create an AI Agent with specific instructions and a name
+    AIAgent storytellerAgent = chatClient.AsAIAgent(
+        instructions: Agents.Storyteller.Instructions,
+        name: Agents.Storyteller.Name);
+
+    ColoredConsole.WriteInfoLine("=== Scenario 5: Streaming ===");
+
+    // Step 2: Run the agent in streaming mode and write each update as soon as it arrives
+    // (no spinner here: the text itself shows the progress)
+    List<AgentResponseUpdate> updates = [];
+    await foreach (AgentResponseUpdate update in storytellerAgent.RunStreamingAsync(Questions.StoryAboutParis))
+    {
+        Console.Write(update.Text);
+        updates.Add(update);
+    }
+
+    Console.WriteLine();
+
+    // Step 3: Combine the updates into a single AgentResponse to read the token usage of the streamed run
+    AgentResponse streamedResponse = updates.ToAgentResponse();
+    ColoredConsole.WriteDividerLine();
+    ColoredConsole.WritePrimaryLogLine("Token Usage (streaming): ");
+    ColoredConsole.WriteSecondaryLogLine($"  Input tokens: {streamedResponse.Usage?.InputTokenCount}");
+    ColoredConsole.WriteSecondaryLogLine($"  Output tokens: {streamedResponse.Usage?.OutputTokenCount}");
+    ColoredConsole.WriteSecondaryLogLine($"  Total tokens: {streamedResponse.Usage?.TotalTokenCount}");
+}
+
+#endregion
+
+#region Scenario 6: Responses API - The same agent on the API that Microsoft recommends
+
+if (ShouldRunScenario(6))
+{
+    ColoredConsole.WriteDividerLine();
+
+    // Step 1: Create the same geography agent on the Responses API, from the same OpenAIClient.
+    // With Chat Completions, the deployment is chosen by GetChatClient(...); with Responses, it is the model of each request.
+    // GetResponsesClient() is still flagged [Experimental] (OPENAI001) by the OpenAI SDK.
+#pragma warning disable OPENAI001
+    AIAgent responsesAgent = client.GetResponsesClient().AsAIAgent(
+        model: settings.ChatDeploymentName,
+        instructions: Agents.Geography.Instructions,
+        name: Agents.Geography.Name);
+#pragma warning restore OPENAI001
+
+    // Step 2: Run it exactly like the Chat Completions agents: RunAsync and AgentResponse do not change
+    AgentResponse responsesResponse = await responsesAgent.RunAsync(Questions.SurfaceAreaOfItaly).WithSpinner("Running agent");
+
+    // Step 3: Display the answer, the id of the response (stored by the service by default) and the token usage
+    ColoredConsole.WriteInfoLine("=== Scenario 6: Responses API ===");
+    ColoredConsole.WritePrimaryLogLine(responsesResponse.Text);
+    ColoredConsole.WriteDividerLine();
+    ColoredConsole.WriteSecondaryLogLine($"Response id (stored by the service): {responsesResponse.ResponseId}");
+    ColoredConsole.WritePrimaryLogLine("Token Usage (Responses API): ");
+    ColoredConsole.WriteSecondaryLogLine($"  Input tokens: {responsesResponse.Usage?.InputTokenCount}");
+    ColoredConsole.WriteSecondaryLogLine($"  Output tokens: {responsesResponse.Usage?.OutputTokenCount}");
+    ColoredConsole.WriteSecondaryLogLine($"  Total tokens: {responsesResponse.Usage?.TotalTokenCount}");
+
+    // Step 4: Ask a follow-up question that only makes sense after the first one ("its" is Italy).
+    // In scenarios 1 to 5, each RunAsync is independent: the agent remembers nothing of the previous question.
+    // Here, the id of the first response is passed as the ConversationId of the run: the Responses API chains the new request
+    // to the stored response (previous_response_id), so the service brings back the history. Only the new question is sent.
+    ChatClientAgentRunOptions followUpOptions = new(new AIExtensions.ChatOptions { ConversationId = responsesResponse.ResponseId });
+    AgentResponse followUpResponse = await responsesAgent.RunAsync(Questions.ItsPopulation, options: followUpOptions).WithSpinner("Running agent");
+
+    // Step 5: Display the follow-up answer, its own response id and its token usage
+    // (the input tokens now include the first question and answer, added by the service)
+    ColoredConsole.WriteDividerLine();
+    ColoredConsole.WriteInfoLine($"=== Follow-up question, chained to {responsesResponse.ResponseId} ===");
+    ColoredConsole.WritePrimaryLogLine(followUpResponse.Text);
+    ColoredConsole.WriteDividerLine();
+    ColoredConsole.WriteSecondaryLogLine($"Follow-up response id: {followUpResponse.ResponseId}");
+    ColoredConsole.WritePrimaryLogLine("Token Usage (follow-up, history kept by the service): ");
+    ColoredConsole.WriteSecondaryLogLine($"  Input tokens: {followUpResponse.Usage?.InputTokenCount}");
+    ColoredConsole.WriteSecondaryLogLine($"  Output tokens: {followUpResponse.Usage?.OutputTokenCount}");
+    ColoredConsole.WriteSecondaryLogLine($"  Total tokens: {followUpResponse.Usage?.TotalTokenCount}");
+}
+
+#endregion

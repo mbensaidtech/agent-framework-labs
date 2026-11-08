@@ -1,0 +1,34 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <!--
+    The MCP server of the provider team. It has no agent and no model: no Agent Framework, no Azure OpenAI.
+    It only calls the REST microservice (OrdersApi, a separate project and process) and exposes some of its endpoints as MCP tools.
+  -->
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <TargetFramework>net10.0</TargetFramework>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+    <!-- Shared by every lab. The MCP server reads no Azure OpenAI secret, but you can keep OrdersApi:ApiKey there. -->
+    <UserSecretsId>microsoft-agent-framework-learninglabs</UserSecretsId>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <!-- Official MCP C# SDK for ASP.NET Core: MCP server, Streamable HTTP transport, MCP authentication and authorization filters,
+         and the MCP client used by the scenarios to test the server. Brings the ASP.NET Core shared framework. -->
+    <PackageReference Include="ModelContextProtocol.AspNetCore" Version="2.2.0" />
+    <!-- Validation of the bearer tokens (JWT) sent by the MCP clients. -->
+    <PackageReference Include="Microsoft.AspNetCore.Authentication.JwtBearer" Version="10.0.14" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\..\..\..\CommonUtilities\CommonUtilities.csproj" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <None Update="appsettings.json">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </None>
+  </ItemGroup>
+
+</Project>

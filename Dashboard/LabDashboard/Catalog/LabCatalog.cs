@@ -1,0 +1,396 @@
+using System.Text.Json;
+using System.Text.Json.Serialization;
+using System.Text.RegularExpressions;
+using CommonUtilities;
+
+namespace LabDashboard.Catalog;
+
+public enum RunTarget
+{
+    Start,
+    Solution
+}
+
+/// <summary>A check run against the standard output of a lab run (multiline regular expression).</summary>
+public sealed partial record LabExpectation(string Id, string Description, string Pattern)
+{
+    /// <summary>
+    /// The scenarios the check needs, when its id does not say it (<c>scenario2-usage</c> is a check of scenario 2):
+    /// for example a comparison of scenarios 1 and 2, or a server check made on the output of a companion.
+    /// </summary>
+    public IReadOnlyList<int>? Scenarios { get; init; }
+
+    /// <summary>The scenarios the check needs: evaluated only when they all ran. None: a check of the whole run (the configuration).</summary>
+    public IReadOnlyList<int> ScenarioNumbers() =>
+        Scenarios ?? (ScenarioId().Match(Id) is { Success: true } match ? [int.Parse(match.Groups["number"].Value)] : []);
+
+    [GeneratedRegex(@"^scenario(?<number>\d+)(?:-|$)")]
+    private static partial Regex ScenarioId();
+}
+
+/// <summary>Optional translation of the lab texts shown by the dashboard (keyed by language code, e.g. "fr").</summary>
+public sealed record LabTranslation
+{
+    public string? Track { get; init; }
+    public string? Title { get; init; }
+    public string? Summary { get; init; }
+    public string? Level { get; init; }
+    public IReadOnlyList<string>? Objectives { get; init; }
+
+    /// <summary>Check descriptions keyed by expectation id.</summary>
+    public IReadOnlyDictionary<string, string>? Checks { get; init; }
+}
+
+/// <summary>
+/// A stage of the learning path (labs.json <c>stages</c>): the labs of a stage are consecutive in the catalog, and the stages follow
+/// each other in the order of the file. An optional stage holds labs outside the essential path.
+/// </summary>
+public sealed record LabStage
+{
+    public required string Id { get; init; }
+    public required string Title { get; init; }
+    public bool Optional { get; init; }
+    public IReadOnlyDictionary<string, LabStageTranslation> Translations { get; init; } = new Dictionary<string, LabStageTranslation>();
+}
+
+public sealed record LabStageTranslation(string? Title);
+
+/// <summary>
+/// The stage of a lab as the UI and the admin dashboard get it: <see cref="Number"/> counts the essential stages from 1, and is null
+/// for an optional stage.
+/// </summary>
+public sealed record LabStageSummary(string Id, int? Number, string Title, bool Optional, IReadOnlyDictionary<string, LabStageTranslation> Translations);
+
+/// <summary>How a companion process takes part in a run (see <see cref="LabCompanion"/>).</summary>
+[JsonConverter(typeof(JsonStringEnumConverter<CompanionRole>))]
+public enum CompanionRole
+{
+    /// <summary>The companion is a server the lab calls: started (and ready) before the lab, stopped after it.</summary>
+    Server,
+
+    /// <summary>The lab is a server: it is started first, the companion runs once the lab is ready, then the lab is stopped.</summary>
+    Client
+}
+
+/// <summary>
+/// A second project run next to the lab, for labs that only make sense in pairs (an A2A client and its server).
+/// The companion is always the reference solution of the other lab, built and run with the same commands as a lab.
+/// </summary>
+public sealed record LabCompanion
+{
+    public required CompanionRole Role { get; init; }
+
+    /// <summary>The companion project, relative to the repository root.</summary>
+    public required string Project { get; init; }
+
+    /// <summary>A line of the server (the companion for <see cref="CompanionRole.Server"/>, the lab for <see cref="CompanionRole.Client"/>) that says it is ready.</summary>
+    public required string ReadyPattern { get; init; }
+
+    public int ReadyTimeoutSeconds { get; init; } = 60;
+
+    /// <summary>Environment variables set on both processes of the run (for example a dedicated port), shown in the log.</summary>
+    public IReadOnlyDictionary<string, string> Environment { get; init; } = new Dictionary<string, string>();
+}
+
+/// <summary>One lab as declared in labs.json. Paths are relative to the repository root.</summary>
+public sealed record LabDefinition
+{
+    public required string Id { get; init; }
+    public required string Number { get; init; }
+    public required string Track { get; init; }
+
+    /// <summary>Id of the stage of the learning path (labs.json <c>stages</c>): required when the catalog declares stages.</summary>
+    public string? Stage { get; init; }
+
+    public required string Title { get; init; }
+    public required string Summary { get; init; }
+    public required string Level { get; init; }
+    public IReadOnlyList<string> Objectives { get; init; } = [];
+    public required string Path { get; init; }
+    public required string StartProject { get; init; }
+    public required string SolutionProject { get; init; }
+    public string Readme { get; init; } = "README.md";
+    public int TimeoutSeconds { get; init; } = 180;
+
+    /// <summary>The program reads standard input (<c>Console.ReadLine</c>): the dashboard keeps stdin open and asks the learner.</summary>
+    public bool Interactive { get; init; }
+
+    /// <summary>
+    /// The lab keeps data outside of the application, in the storage chosen by <c>Storage:Mode</c> (MongoDB in Docker, MongoDB without Docker,
+    /// or a JSON file): the dashboard shows the mode in use and lets the learner change it.
+    /// </summary>
+    public bool Storage { get; init; }
+
+    /// <summary>An interactive run whose prompt stays unanswered this long times out. The lab timeout is paused while it waits.</summary>
+    public int InputIdleTimeoutSeconds { get; init; } = 600;
+
+    /// <summary>Optional second project of the run (see <see cref="LabCompanion"/>).</summary>
+    public LabCompanion? Companion { get; init; }
+    public IReadOnlyList<LabExpectation> Expectations { get; init; } = [];
+
+    /// <summary>
+    /// Optional scenarios (a bonus): the exercise is completed without them, and completed with its bonus ("Done+") when they pass too
+    /// (see <c>ExerciseProgress</c>). Their blocks carry a <c>// Bonus scenario</c> comment in Program.cs.
+    /// </summary>
+    public IReadOnlyList<int> BonusScenarios { get; init; } = [];
+
+    public IReadOnlyDictionary<string, LabTranslation> Translations { get; init; } = new Dictionary<string, LabTranslation>();
+
+    public string ProjectFor(RunTarget target) => target == RunTarget.Start ? StartProject : SolutionProject;
+}
+
+/// <summary>
+/// The whitelist of runnable labs. Only the projects declared here can ever be built or run by the dashboard.
+/// </summary>
+public sealed partial class LabCatalog
+{
+    private readonly Dictionary<string, LabDefinition> _labs;
+
+    private readonly Dictionary<string, LabStageSummary> _stages;
+
+    private LabCatalog(string repositoryRoot, IReadOnlyList<LabDefinition> labs, IReadOnlyList<LabStage> stages)
+    {
+        RepositoryRoot = repositoryRoot;
+        Labs = labs;
+        Stages = stages;
+        int number = 0;
+        _stages = stages.ToDictionary(
+            stage => stage.Id,
+            stage => new LabStageSummary(stage.Id, stage.Optional ? null : ++number, stage.Title, stage.Optional, stage.Translations),
+            StringComparer.Ordinal);
+        LearningPath = labs;
+        _labs = labs.ToDictionary(lab => lab.Id, StringComparer.OrdinalIgnoreCase);
+    }
+
+    public string RepositoryRoot { get; }
+
+    /// <summary>The labs in the order of labs.json (the order published to the admin dashboard).</summary>
+    public IReadOnlyList<LabDefinition> Labs { get; }
+
+    /// <summary>
+    /// The labs as the learner follows them: the order of labs.json, stage by stage (specs/learning-path-stages). labs.json is the single
+    /// source of truth of the path: nothing sorts or regroups the labs (not by number, track or title).
+    /// </summary>
+    public IReadOnlyList<LabDefinition> LearningPath { get; }
+
+    /// <summary>The stages of the learning path, in order (empty for a catalog without stages).</summary>
+    public IReadOnlyList<LabStage> Stages { get; }
+
+    /// <summary>The stage of a lab, numbered; null when the catalog has no stages.</summary>
+    public LabStageSummary? StageOf(LabDefinition lab) => lab.Stage is { } id ? _stages.GetValueOrDefault(id) : null;
+
+    public LabDefinition? Find(string id) => _labs.GetValueOrDefault(id);
+
+    public string LabDirectory(LabDefinition lab) => Resolve(lab.Path);
+
+    public string ProjectPath(LabDefinition lab, RunTarget target) => Resolve(System.IO.Path.Combine(lab.Path, lab.ProjectFor(target)));
+
+    public string? CompanionProjectPath(LabDefinition lab) => lab.Companion is null ? null : Resolve(lab.Companion.Project);
+
+    /// <summary>The Program.cs of a project, which declares its scenarios.</summary>
+    public string ProgramPath(LabDefinition lab, RunTarget target) =>
+        System.IO.Path.Combine(System.IO.Path.GetDirectoryName(ProjectPath(lab, target))!, "Program.cs");
+
+    /// <summary>
+    /// The scenarios of a project, read now from its Program.cs (the learner edits the exercise while the dashboard runs) and compared
+    /// with the delivered exercise: the same rules as the lab itself (<see cref="LabScenarios"/>). None for a program without scenario regions.
+    /// </summary>
+    public IReadOnlyList<LabScenario> Scenarios(LabDefinition lab, RunTarget target) => LabScenarios.ReadFile(ProgramPath(lab, target));
+
+    public string ReadmePath(LabDefinition lab) => Resolve(System.IO.Path.Combine(lab.Path, lab.Readme));
+
+    /// <summary>The README in the requested language (e.g. README.fr.md) when it exists, otherwise null.</summary>
+    public string? LocalizedReadmePath(LabDefinition lab, string language)
+    {
+        if (language.Length != 2 || !language.All(char.IsAsciiLetterLower))
+        {
+            return null;
+        }
+
+        string path = Resolve(System.IO.Path.Combine(lab.Path, System.IO.Path.ChangeExtension(lab.Readme, $"{language}.md")));
+        return File.Exists(path) ? path : null;
+    }
+
+    public static LabCatalog Load(string catalogFile, string repositoryRoot)
+    {
+        string root = System.IO.Path.GetFullPath(repositoryRoot);
+        CatalogFile file = JsonSerializer.Deserialize<CatalogFile>(File.ReadAllText(catalogFile), JsonSerializerOptions.Web)
+            ?? throw new InvalidOperationException($"'{catalogFile}' is empty.");
+
+        IReadOnlyList<LabStage> stages = file.Stages ?? [];
+        ValidateStages(stages, file.Labs);
+        LabCatalog catalog = new(root, file.Labs, stages);
+        foreach (LabDefinition lab in file.Labs)
+        {
+            catalog.Validate(lab);
+        }
+
+        return catalog;
+    }
+
+    /// <summary>
+    /// specs/learning-path-stages, Business Rules 1–3: unique stage ids, a known stage for every lab, no empty stage, and the labs listed
+    /// stage by stage in the order of the stages. A catalog without stages is one path in the order of its labs.
+    /// </summary>
+    private static void ValidateStages(IReadOnlyList<LabStage> stages, IReadOnlyList<LabDefinition> labs)
+    {
+        if (stages.Count == 0)
+        {
+            if (labs.FirstOrDefault(lab => lab.Stage is not null) is { } staged)
+            {
+                throw new InvalidOperationException($"Lab '{staged.Id}': stage '{staged.Stage}' is declared, but the catalog has no stages.");
+            }
+
+            return;
+        }
+
+        Dictionary<string, int> order = [];
+        foreach (LabStage stage in stages)
+        {
+            if (!StageId().IsMatch(stage.Id) || string.IsNullOrWhiteSpace(stage.Title))
+            {
+                throw new InvalidOperationException($"Stage '{stage.Id}': the id must match {StageId()} and the title must not be empty.");
+            }
+
+            if (!order.TryAdd(stage.Id, order.Count))
+            {
+                throw new InvalidOperationException($"Stage '{stage.Id}' is declared twice.");
+            }
+        }
+
+        int previous = 0;
+        foreach (LabDefinition lab in labs)
+        {
+            if (lab.Stage is null || !order.TryGetValue(lab.Stage, out int index))
+            {
+                throw new InvalidOperationException($"Lab '{lab.Id}': stage '{lab.Stage}' is not one of the stages of the catalog.");
+            }
+
+            if (index < previous)
+            {
+                throw new InvalidOperationException(
+                    $"Lab '{lab.Id}': the labs must be listed stage by stage, in the order of the stages ('{lab.Stage}' after '{stages[previous].Id}').");
+            }
+
+            previous = index;
+        }
+
+        if (stages.FirstOrDefault(stage => labs.All(lab => lab.Stage != stage.Id)) is { } empty)
+        {
+            throw new InvalidOperationException($"Stage '{empty.Id}' has no lab.");
+        }
+    }
+
+    [GeneratedRegex("^[a-z][a-z0-9-]{0,31}$")]
+    private static partial Regex StageId();
+
+    private void Validate(LabDefinition lab)
+    {
+        if (lab.TimeoutSeconds <= 0 || lab.InputIdleTimeoutSeconds <= 0)
+        {
+            throw new InvalidOperationException($"Lab '{lab.Id}': timeouts must be positive.");
+        }
+
+        foreach (RunTarget target in Enum.GetValues<RunTarget>())
+        {
+            string project = ProjectPath(lab, target);
+            if (!File.Exists(project))
+            {
+                throw new InvalidOperationException($"Lab '{lab.Id}': project '{project}' not found.");
+            }
+        }
+
+        if (lab.Companion is { } companion)
+        {
+            ValidateCompanion(lab, companion);
+        }
+
+        if (lab.BonusScenarios.Any(number => number <= 0) || lab.BonusScenarios.Distinct().Count() != lab.BonusScenarios.Count)
+        {
+            throw new InvalidOperationException($"Lab '{lab.Id}': bonus scenarios must be distinct positive scenario numbers.");
+        }
+
+        if (lab.BonusScenarios.Count > 0)
+        {
+            HashSet<int> declared = [.. LabScenarios.ReadFile(ProgramPath(lab, RunTarget.Solution)).Select(scenario => scenario.Number)];
+            if (lab.BonusScenarios.FirstOrDefault(number => !declared.Contains(number)) is int unknown and > 0)
+            {
+                throw new InvalidOperationException($"Lab '{lab.Id}': bonus scenario {unknown} is not a scenario of the solution.");
+            }
+
+            if (declared.Count > 0 && declared.All(lab.BonusScenarios.Contains))
+            {
+                throw new InvalidOperationException($"Lab '{lab.Id}': at least one scenario must not be a bonus.");
+            }
+        }
+
+        foreach (LabExpectation expectation in lab.Expectations)
+        {
+            try
+            {
+                _ = new Regex(expectation.Pattern, RegexOptions.Multiline);
+            }
+            catch (ArgumentException ex)
+            {
+                throw new InvalidOperationException($"Lab '{lab.Id}': invalid pattern for expectation '{expectation.Id}'.", ex);
+            }
+        }
+    }
+
+    private void ValidateCompanion(LabDefinition lab, LabCompanion companion)
+    {
+        if (!Enum.IsDefined(companion.Role) || companion.ReadyTimeoutSeconds <= 0)
+        {
+            throw new InvalidOperationException($"Lab '{lab.Id}': invalid companion role or ready timeout.");
+        }
+
+        if (lab.Interactive)
+        {
+            throw new InvalidOperationException($"Lab '{lab.Id}': an interactive lab cannot have a companion.");
+        }
+
+        string project = Resolve(companion.Project);
+        if (!project.EndsWith(".csproj", StringComparison.Ordinal) || !File.Exists(project))
+        {
+            throw new InvalidOperationException($"Lab '{lab.Id}': companion project '{project}' not found.");
+        }
+
+        try
+        {
+            _ = new Regex(companion.ReadyPattern);
+        }
+        catch (ArgumentException ex)
+        {
+            throw new InvalidOperationException($"Lab '{lab.Id}': invalid companion ready pattern.", ex);
+        }
+
+        foreach (string name in companion.Environment.Keys)
+        {
+            if (!EnvironmentVariableName().IsMatch(name))
+            {
+                throw new InvalidOperationException($"Lab '{lab.Id}': invalid companion environment variable name '{name}'.");
+            }
+        }
+    }
+
+    [GeneratedRegex("^[A-Za-z_][A-Za-z0-9_]*$")]
+    private static partial Regex EnvironmentVariableName();
+
+    /// <summary>Resolves a catalog path and refuses anything that escapes the repository root.</summary>
+    private string Resolve(string relativePath)
+    {
+        string fullPath = System.IO.Path.GetFullPath(System.IO.Path.Combine(RepositoryRoot, relativePath));
+        string rootWithSeparator = RepositoryRoot.EndsWith(System.IO.Path.DirectorySeparatorChar)
+            ? RepositoryRoot
+            : RepositoryRoot + System.IO.Path.DirectorySeparatorChar;
+
+        if (!fullPath.StartsWith(rootWithSeparator, StringComparison.Ordinal))
+        {
+            throw new InvalidOperationException($"Path '{relativePath}' is outside the repository.");
+        }
+
+        return fullPath;
+    }
+
+    private sealed record CatalogFile(IReadOnlyList<LabDefinition> Labs, IReadOnlyList<LabStage>? Stages);
+}

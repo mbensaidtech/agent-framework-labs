@@ -1,0 +1,759 @@
+# Microsoft Agent Framework - Learning Labs
+
+## Introduction
+
+Welcome to the **Microsoft Agent Framework Learning Labs**! This repository provides a hands-on approach to learning how to build AI Agents using the **Microsoft Agents Framework** with **Azure OpenAI**.
+
+### Objective
+
+The objective of these labs is to guide developers through the process of building intelligent AI agents, from basic chat interactions to advanced multi-agent systems. Each lab focuses on a specific concept and includes practical scenarios that progressively build your knowledge and skills.
+
+### How the Labs are Structured
+
+Each lab follows a consistent structure designed for effective learning:
+
+```
+LabXX-LabName/
+├── README.md       <-- Detailed instructions, hints, and explanations
+├── Start/          <-- Your working folder with TODOs to complete
+│   ├── Program.cs     <-- Contains step-by-step TODOs with hints
+│   └── LabPrompts.cs  <-- Provided: names, instructions and questions of the agents
+└── Solution/       <-- Complete reference implementation
+    ├── Program.cs     <-- Fully working code to compare with your solution
+    └── LabPrompts.cs  <-- The same file as in Start/
+```
+
+#### How to Work with Each Lab
+
+1. **Read the README.md** - Understand the objective and key concepts
+2. **Open the `Start/` folder** - This is your working directory
+3. **Complete the TODOs** - Follow the comments in `Program.cs` with basic hints. The names, instructions and questions of the agents are **provided** in `LabPrompts.cs` (do not edit it): use its constants (`Agents.<Agent>.Name`, `Agents.<Agent>.Instructions`, `Questions.<Name>`...) instead of writing your own texts, so everyone runs the same agents, gets answers comparable with the README's Expected Output, and spends the lab on the Agent Framework code
+4. **Need more help?** - Check the README.md for detailed hints and explanations
+5. **Stuck?** - Compare your code with the `Solution/` folder
+
+Each lab contains one or more **scenarios** that demonstrate different aspects of the topic being covered.
+
+---
+
+## Prerequisites
+
+| Requirement | Needed for | Notes |
+|-------------|-----------|-------|
+| **.NET 10 SDK** or newer | CLI and Dashboard | All labs and the dashboard target `net10.0`. Check with `dotnet --version`. |
+| **Azure OpenAI resource** with a chat deployment | Every lab | You need the endpoint URL and the **deployment name** (not the model name). |
+| **Authentication** | Every lab | Either the resource **API key**, or **Microsoft Entra ID**: `az login` + the *Cognitive Services OpenAI User* role on the resource (used automatically when no key is set). |
+| Embedding deployment | Lab07+ | e.g. `text-embedding-3-small`. Lab07 reads it from `AzureOpenAI:EmbeddingDeploymentName` (`appsettings.json`, user secret or `AzureOpenAI__EmbeddingDeploymentName`). |
+| MongoDB, or nothing | Lab05, Lab12 | Choose the storage with `Storage:Mode` (shared user secret, see the lab READMEs); none needs administrator rights. `MongoDb` (default): the lab's container, `docker compose up -d` in its `MongoDB/` folder (Docker required); Lab05 uses `mongodb://localhost:27017`, Lab12 `mongodb://localhost:27018`, so both can run at the same time. `EmbeddedMongoDb`: no Docker, the lab downloads MongoDB from mongodb.org at its first run and starts it itself. `JsonFile`: no MongoDB at all, a JSON file. |
+| Docker, **optional** | Never required | No lab needs Docker. Lab05 and Lab12: one of the three storages above (MongoDB without Docker or a JSON file work as well). Lab11: only for the optional Grafana bonus. Lab16: only to try the container deployment of the MCP server (scenario 4 runs without it). |
+| Internet access to `https://huggingface.co/mcp` | Lab04 | Works anonymously; an optional Hugging Face token (user secret `MCPServers:HuggingFace:BearerToken`) raises the rate limits. |
+| Visual Studio Code (C# Dev Kit), Visual Studio 2026 (18.0+) or Rider | Editing the exercises | Any editor works with the `dotnet` CLI. Visual Studio 2022 cannot target `net10.0`. |
+
+> **Agent Framework version:** the 16 **AzureOpenAI** labs and the 3 **MultiAgentSystem** labs (*Delegate a Task to Another Agent*, *Sequential Orchestration*, *Concurrent Orchestration*) target the stable release of Microsoft Agent Framework **1.27.0**.
+> Every lab is available in the dashboard and runs with the CLI.
+
+---
+
+## Running the Labs: CLI or Dashboard
+
+There are two ways to run a lab. Both run **the same projects, with the same `dotnet` commands and the same configuration**, so you can switch at any time.
+
+| | Option A — `dotnet` CLI | Option B — Lab Bench Dashboard |
+|---|---|---|
+| Labs available | **All labs** | Migrated labs only (AzureOpenAI Lab01 to Lab16, with Lab06 and Lab16 server and client; MultiAgentSystem Lab01 to Lab03), in the order of the [learning path](#learning-path) |
+| How you run a lab | `dotnet run` in a terminal | **Run** button in a local web page |
+| Configuration | `appsettings.json`, user secrets or environment variables | The same, plus the **AI models** settings: the trainer's configuration (access code) or your own, for the LLM and the embedding model |
+| Result | You read the console output | **Passed / Failed** verdict, automatic checks, token usage, run history |
+| Interactive labs (`Console.ReadLine`) | Supported (keyboard) | Supported for labs declared interactive (Lab09): an input box asks for each value |
+| Best for | Every lab, debugging, IDE workflow | Getting started, quick feedback on the labs |
+
+Whichever you choose, **configure Azure OpenAI once first**: the configuration is shared by every lab and by both options.
+
+### Configure Azure OpenAI
+
+Each lab reads its settings from these sources (the last one wins):
+
+1. `appsettings.json` of the lab (ships with `YOUR-…` placeholders)
+2. **User secrets** shared by all labs (id `microsoft-agent-framework-learninglabs`, stored outside the repository)
+3. **Environment variables** `AzureOpenAI__*`
+
+#### Where do I get these values?
+
+Two sources, for the LLM (every lab) and the embedding model (Lab07) independently:
+
+- **In a workshop: the trainer's configuration.** The trainer e-mails you an **invitation code** and announces an **access code**. In the dashboard, paste the invitation code in *Join the workshop*, then in **AI models** tick *Use the trainer's configuration*, click **Unlock** and type the access code: the endpoints, deployments and keys are saved for you, without ever being displayed (see [step 4 of Option B](#4-configure-the-ai-models-from-the-dashboard)).
+- **Your own Azure OpenAI resource.** In the [Azure portal](https://portal.azure.com), open the resource, then *Resource Management → **Keys and Endpoint***: the **endpoint** (`https://<resource>.openai.azure.com/`) and **KEY 1** (the API key, optional with Microsoft Entra ID). The **deployment** is the name you gave the model deployment in [Azure AI Foundry](https://ai.azure.com) (*Deployments*), not the model name. Lab07 also needs an embedding deployment (for example of `text-embedding-3-small`), on the same resource or on another one.
+
+Pick one method:
+
+- **Dashboard AI models settings**, no terminal needed — see [step 4 of Option B](#4-configure-the-ai-models-from-the-dashboard).
+- **User secrets** (recommended for the API key), from any lab project folder:
+  ```bash
+  cd LearningLabs/AzureOpenAI/Lab01-FirstBasicAIAgent/Start
+  dotnet user-secrets set "AzureOpenAI:Endpoint" "https://my-resource.openai.azure.com/"
+  dotnet user-secrets set "AzureOpenAI:ChatDeploymentName" "gpt-4o"
+  dotnet user-secrets set "AzureOpenAI:APIKey" "<your-api-key>"   # optional: omit it to use Microsoft Entra ID
+  dotnet user-secrets list
+  ```
+- **Environment variables**, set once for every lab — see [Environment Variables Configuration](#environment-variables-configuration).
+- **`appsettings.json`** of a single lab — works, but never commit a real key.
+
+If the endpoint or the deployment is missing, a lab stops with *"'AzureOpenAI:Endpoint' is not configured"*. No API version is needed: the labs use the Azure OpenAI **v1** API (`…/openai/v1/`).
+
+---
+
+### Option A — Run a lab with the `dotnet` CLI
+
+#### 1. Find the lab
+
+Labs live in `LearningLabs/<Part>/<LabFolder>/`, and each lab has two projects:
+
+| Folder | Content | When to run it |
+|--------|---------|----------------|
+| `Start/` | The exercise, with `TODO` comments to complete in `Program.cs`, and the provided texts of the agents in `LabPrompts.cs` | While you work on the lab |
+| `Solution/` | The complete reference implementation | To see the expected behavior, or to compare |
+
+```bash
+ls LearningLabs/AzureOpenAI        # Part 1: Lab01-FirstBasicAIAgent, Lab02-AIAgentWithSO, ...
+ls LearningLabs/MultiAgentSystem   # Part 2: Lab01-UseAgentAsTool, Lab02_OrchestrationSequential, ...
+```
+
+What each lab covers is listed in [Labs Overview](#labs-overview).
+
+#### 2. Run it
+
+From the lab folder:
+
+```bash
+cd LearningLabs/AzureOpenAI/Lab01-FirstBasicAIAgent/Start
+dotnet run
+```
+
+Or from the repository root:
+
+```bash
+# My exercise
+dotnet run --project LearningLabs/AzureOpenAI/Lab01-FirstBasicAIAgent/Start
+
+# Reference solution
+dotnet run --project LearningLabs/AzureOpenAI/Lab01-FirstBasicAIAgent/Solution
+```
+
+The first `dotnet run` restores the NuGet packages and builds the project (including the shared `CommonUtilities` project).
+To only check that your code compiles: `dotnet build LearningLabs/AzureOpenAI/Lab01-FirstBasicAIAgent/Start`.
+
+> **Lab06 (A2A)** has two separate labs: start `Lab06_A2AServer` in one terminal (it listens on `http://localhost:5000` until `Ctrl+C`), then `Lab06_A2AClient` in another.
+> Both use the **A2A protocol v1** (preview packages aligned on Agent Framework 1.27.0): a migrated client cannot call an old v0.3 server.
+
+#### 3. Choose the scenarios to run
+
+Without option, `dotnet run` runs the **implemented** scenarios only. A scenario is *not implemented* while the code of its `#region Scenario N: …` block of `Program.cs`, or the code before the first scenario (the setup), is still the code delivered with the exercise. Comments and layout do not count: keeping or removing the `TODO` comments changes nothing, writing code does. The delivered exercise (`Start/`) therefore runs no scenario until you write one; the reference solution runs them all. The delivered code is identified by the `exercise-fingerprints.json` file of the lab (fingerprints of its code, not a copy).
+
+Choose the scenarios after `--` (from the project folder, or with `--project` as above):
+
+| Command | Runs |
+|---------|------|
+| `dotnet run` | The implemented scenarios (never a scenario whose code is still the delivered one) |
+| `dotnet run -- --scenarios 2` | Scenario 2 only (`--scenario 2` works too) |
+| `dotnet run -- --scenarios 1,3` | Scenarios 1 and 3 |
+| `dotnet run -- --scenarios implemented` | Every implemented scenario, explicitly (same as no option) |
+| `dotnet run -- --list-scenarios` | Nothing: lists the scenarios of the lab, implemented or not, and what `dotnet run` would run |
+
+- A scenario that is not implemented **never runs**: when you name one, it is left out (`>>> Scenarios not run: 2 (not implemented yet: …)`) and the other scenarios you named run. An unknown number stops the program with the list of the scenarios (exit code 2).
+- Some scenarios need another one in the same run, declared by a `// Requires scenario N` comment in their block: Lab07 scenarios 2–5 need scenario 1 (it fills the in-memory vector store), Lab13 scenarios 3 and 4 need scenario 2 (same conversation). Naming them adds the scenario they require; a scenario whose required scenario is not implemented is left out too.
+- The program prints what it runs (`>>> Scenarios to run: 1, 3 (--scenarios 1,3)`) and a line when each scenario starts (`>>> Running scenario 3: …`).
+
+The selection rules live in `CommonUtilities` (`LabScenarios.cs`, `ScenarioSelection.cs`), and the **dashboard runs the lab with the same option** (`dotnet run --no-build -- --scenarios 1,3`): both modes always run the same scenarios.
+
+#### 4. Read the result
+
+The program prints each scenario (`=== Scenario 1: … ===`), the agent answers and, in most labs, the token usage (`Input tokens: …`).
+Compare it with the output of `Solution/`. Stop a running lab with `Ctrl+C`.
+
+---
+
+### Option B — Run a lab with the Lab Bench Dashboard
+
+The dashboard is a local web UI (listening on `127.0.0.1` only) that builds and runs the labs for you and shows the live output, a verdict, the token usage and the run history. It is optional: no lab depends on it.
+
+#### 1. Start the dashboard
+
+Run it from its own folder (it locates the labs relative to this folder):
+
+```bash
+cd Dashboard/LabDashboard
+dotnet run
+```
+
+The terminal prints `Lab dashboard running on http://127.0.0.1:5057 (Ctrl+C to stop)`. Keep it open; stop the dashboard with `Ctrl+C`.
+
+> Port 5057 already in use? `Dashboard__Port=5058 dotnet run` (macOS/Linux) or `$env:Dashboard__Port=5058; dotnet run` (PowerShell).
+
+#### 2. Open the interface
+
+Open <http://127.0.0.1:5057> in your browser. The top bar shows:
+
+- the runner status (**Runner connected**);
+- the **Azure OpenAI** button with the authentication status: *API key*, *Microsoft Entra ID* or *Not configured*;
+- the **EN | FR** language selector.
+
+The **Labs** list on the left shows every registered lab with its progress (*Not started*, *In progress*, *Completed*) and last result.
+
+#### 3. Select a lab
+
+Click a lab in the list. Its page has five tabs:
+
+| Tab | Content |
+|-----|---------|
+| **Run** | Run the lab and follow its execution |
+| **Instructions** | The lab `README.md` (the French version when the lab provides a `README.fr.md`) |
+| **History** | The last 30 runs: project, result, date, duration, tokens |
+| **About** | What you will learn, the lab folder, the NuGet packages, the equivalent `dotnet` commands, and the checks used to judge a run |
+| **Solution** | The solution files that differ from the exercise, behind a *"Try it yourself first"* gate |
+
+#### 4. Configure the AI models from the dashboard
+
+Click the **Azure OpenAI** status in the top bar: the **AI models** tab has one card for the **LLM** (every lab) and one for the **embedding model** (Lab07). For each one, choose:
+
+- **Trainer configuration** (in a workshop, once you joined it with the trainer's invitation code): the card shows the trainer's configuration, without any code. Tick **Use the trainer's configuration** in the cards you want, click **Unlock** and type the **access code** announced by the trainer (5 characters; `k7qx-9` works too). The keys are opened by the dashboard on your machine and saved at once; they are never displayed.
+- **My configuration**: your own Azure OpenAI deployment — **Endpoint** (e.g. `https://my-resource.openai.azure.com/`), **Deployment** (the deployment name, not the model name) and an optional **API key** (empty: Microsoft Entra ID with `az login`). The embedding model uses *the same resource as the LLM* (only its deployment) or *its own resource*. Click the card's **Save**; once saved, a key is never displayed again (`••••` and its last 4 characters) and **Remove** deletes it.
+
+Switching a card back and forth never loses your own values. Everything is written to the shared user secrets (outside the repository) and used by the **next run, from the dashboard and from `dotnet run` alike**. Each field shows where its value comes from and warns when an `AzureOpenAI__*` environment variable overrides it.
+
+#### 5. Run the lab
+
+In the **Run** tab:
+
+1. Choose the project: **My exercise** (`Start/`) or **Reference solution** (`Solution/`).
+2. Tick the **Scenarios** to run. The list is read from the `Program.cs` of the project (again when you come back to the page) and shows three separate things for each scenario:
+   - **whether it can run**: *Not implemented* while its code is still the delivered one (see [Choose the scenarios to run](#3-choose-the-scenarios-to-run)), *Waiting for N* when it requires a scenario that is not implemented;
+   - **its last result**: *Passed*, *Failed* or *Not tested*;
+   - **whether it is ticked** for the next run. Every box can be ticked, even for a scenario that is not implemented: it is then left out of the run (the line under the list says so) and stays ticked until you write it. When no ticked scenario can run, **Run** waits.
+
+   By default, what is left to do is ticked: the implemented scenarios **not passed yet** (failed, or never run: a scenario you just wrote is ticked as soon as you come back to the page) and the **next scenario**, the one after the last passed (scenario 1 at the start), even before you write it. A passed scenario only runs again if you tick it, and the line under the list says so (*Passed already, run again*); the scenarios a ticked one requires are ticked with it (*required by N*).
+
+   Your ticks are for the next run only: when it ends, the list goes back to the default with the new results, so a scenario that just passed is unticked and the one after it is ticked, a failed one stays ticked, and a ticked scenario left out because it was not implemented stays ticked. **Default** goes back to it before running, **Select implemented** ticks every implemented scenario (the passed ones included), **Clear** unticks them all.
+3. Click **Run**. The dashboard runs `dotnet build`, then `dotnet run --no-build -- --scenarios <ticked>` — the same commands as the CLI (shown under the list).
+4. Follow the steps **Build → Run → Checks**. **Cancel** stops the run (the whole process tree is killed); a run also stops when the lab timeout is reached.
+
+Only one run can be in progress at a time.
+
+**Interactive labs** (the program calls `Console.ReadLine()`): during the run, an input box appears under the output. When the program reads, the box is focused with a *Waiting for input #n* badge; type the value and press **Enter** — it is echoed in the output and sent to the program. You can type ahead, and **End input** closes the standard input (the next `ReadLine()` returns `null`, like `Ctrl+D`). Waiting for your answer does not count against the lab time limit; a prompt left unanswered for 10 minutes stops the run. The **About** tab says whether a lab is interactive.
+
+#### 6. Read the results, logs and execution details
+
+| Where | What it shows |
+|-------|---------------|
+| **Output** terminal | The program output (stdout/stderr), live; the console spinner is shown as a status line. **Copy output** copies it. |
+| **Verdict** | **Passed** when the build succeeds, the exit code is 0 **and** every check matches the output; otherwise **Failed** with the reason (build errors, exit code, failed checks, *Timed out*, *Cancelled*), plus the build/run durations and the exit code. |
+| **Checks** | Grouped by scenario: the checks of the whole run (configuration…), then each scenario that ran with its status (*Passed*, *Failed*, *Not run* when the program stopped before it), its checks and the error raised while it was running. Only the checks of the ticked scenarios are evaluated, each on the output of its own scenario. The delivered exercise fails them until its TODOs are completed. |
+| **Errors / Build warnings** | Compiler errors (`error CS…`) or the program's stderr. A missing Azure OpenAI setting links to the settings form. |
+| **Token usage** | Input / output / reasoning / total tokens per scenario, as printed by the lab; *Not available* when the lab prints none. No cost estimate. |
+| **History** tab | Past runs and the scenarios they were limited to, stored in `Dashboard/.data/history.json` (git-ignored). |
+
+An exercise is **Completed** once every scenario passed, in one run or across several: you never have to run the scenarios you already validated again. **Bonus** scenarios (the Responses API scenarios of Labs 04, 05 and 07, marked *Bonus*) are optional: the lab is completed without them, and **Completed+** once they pass too.
+
+**How a scenario is judged.** The checks look at what the scenario does, not at how it presents it: the data only a working implementation can produce (the value a tool returns, an identifier it generates, a fact of the knowledge base, the token counts), and the lines written by the helpers the exercise provides (`WriteRestaurant`, `WriteToolCalls`, `WriteHotels`…: call them as the TODO hints say, they show that the typed object exists). Each check only reads the output of its own scenario, delimited by the line the scenario selection prints when the scenario starts. The scenario header (`=== Scenario 4: … ===`), the separators, the titles and the labels you write yourself are never required: you can rename, move or remove them. The token usage lines keep their wording (`Input tokens: 56`): the dashboard reads them.
+
+The API key never appears in the output, the history or a copied output: it is replaced by `••••`.
+
+#### Dashboard limitations
+
+- Every lab is listed (AzureOpenAI Lab01–Lab16, MultiAgentSystem Lab01–Lab03), in the order of the [learning path](#learning-path).
+- Lab09: scenario 1 waits for your decision in the input box under the output (type `Y` to approve; its checks expect the approval). Scenario 2 needs no input.
+- Lab12: needs its storage (its MongoDB container, or `Storage:Mode` set to `EmbeddedMongoDb` or `JsonFile`, see its README). Scenario 2 is a chat: type messages in the input box, then an empty line, `exit` or **End input** to finish.
+- Lab06: the dashboard runs the A2A server and client together (on port 5071), you do not need to start the server yourself.
+- Lab13: the program starts its API on `WebApi:BaseUrl` (`http://localhost:5200` by default) and stops it at the end: the port must be free during the run.
+- Lab16: the server lab starts the OrdersApi microservice (port 5300) and its MCP server (port 5310), and needs no Azure OpenAI; the client lab runs with the reference MCP server started for you (ports 5371 and 5372).
+- Lab10: each scenario starts its own MCP server (HTTP on `McpServer:BaseUrl`, `http://localhost:5100` by default, or stdio as a child process) and stops it: the port must be free during the run.
+- Interactive input works for the labs declared interactive in the dashboard catalog; key-by-key input (`Console.ReadKey`) is not supported.
+- Console colors are not rendered.
+
+More details (architecture, HTTP API, security, registering a new lab, tests): [Dashboard/README.md](Dashboard/README.md).
+
+#### Optional: report your progress to the trainer's admin dashboard
+
+In a workshop, the trainer hosts the **Admin Dashboard** (a separate Next.js + MongoDB application, kept in its own repository). Its URL is already set in the project (`Dashboard:Reporting:ServerUrl` in `Dashboard/LabDashboard/appsettings.json`).
+At the first launch, choose **Join the workshop**, enter a username and the **invitation code** e-mailed by the trainer (`LB1.…`, also shown on the last slide of the training presentation: it carries an access key valid for this workshop only and the workshop key), and your Lab Bench reports which labs you run and finish, plus a **Help / Je suis bloqué** button that the trainer sees in real time. The trainer gets the code from the **Workshops** page of the admin dashboard (*Invitation*). See [Reporting to the admin dashboard](Dashboard/README.md#reporting-to-the-admin-dashboard).
+Choose **Work on my own** and nothing is ever reported; in any case, never your code, your API key or your console output.
+
+---
+
+## Labs Overview
+
+The labs are organized into two main parts:
+
+### Part 1: AzureOpenAI - Individual AI Agents
+
+This part focuses on building **individual AI agents** with various capabilities. You will learn how to create agents, add tools, handle structured output, connect to external services, and implement human-in-the-loop patterns.
+
+> **Chat Completions and Responses API.** The labs run on Chat Completions, and Lab 01 introduces the Responses API. Labs 04, 05 and 07 end with **bonus** scenarios on the **Responses API** (optional: the lab is completed without them, *Completed+* with them) that compare the two APIs where they really differ: MCP orchestrated by your application or by the service (Lab 04), conversation state kept by your application or by the service (Lab 05), your RAG or the hosted file search (Lab 07). See [Chat Completions and Responses API](LearningLabs/AzureOpenAI/ChatCompletions-vs-Responses.md).
+
+---
+
+### Lab 01 - First Basic AI Agent
+
+**Learn the fundamentals of creating an AI Agent**
+
+| Scenario | Description |
+|----------|-------------|
+| Scenario 1 | Create a basic agent with default settings |
+| Scenario 2 | Create an agent with custom instructions and name |
+| Scenario 3 | Use ChatMessages for fine-grained control |
+| Scenario 4 | Monitor token usage from responses |
+| Scenario 5 | Stream the response with `RunStreamingAsync` |
+| Scenario 6 | Run the same agent on the **Responses API** recommended by Microsoft (`GetResponsesClient().AsAIAgent(model: ...)`), and choose between Chat Completions and Responses |
+
+---
+
+### Lab 02 - AI Agent with Structured Output
+
+**Learn how to get structured JSON responses from an AI Agent**
+
+| Scenario | Description |
+|----------|-------------|
+| Scenario 1 | Manual structured output: JSON format described in the instructions, parsed with `JsonSerializer` |
+| Scenario 2 | Automatic structured output with `RunAsync<T>` and `AgentResponse<T>.Result` (Recommended) |
+| Scenario 3 | Response format configured on the agent (`ChatClientAgentOptions` + `ChatResponseFormat.ForJsonSchema<T>()`), enforced by the service in strict mode |
+| Scenario 4 | Response format for a single run (`AgentRunOptions`, strict mode) with streaming |
+
+---
+
+### Lab 03 - AI Agent with Function Tools
+
+**Learn how to give agents access to external functions and data**
+
+| Scenario | Description |
+|----------|-------------|
+| Scenario 1 | Basic function tools calling: `AIFunctionFactory.Create()`, `[Description]`, `AsAIAgent(..., tools: ...)` |
+| Scenario 2 | A plugin that declares its tools (`AsAITools()`) and checks the arguments chosen by the model: a booking in the past is refused, the problem is explained to the model |
+| Scenario 3 | Static tools with dependency injection (`IServiceProvider` parameter + `AsAIAgent(..., services: ...)`) |
+| Scenario 4 | Function calling middleware that traces every tool call (`AsBuilder().Use(...)`) |
+
+---
+
+### Lab 04 - AI Agent with MCP Client
+
+**Learn how to integrate with Model Context Protocol (MCP) servers**
+
+| Scenario | Description |
+|----------|-------------|
+| Scenario 1 | Connect to the Hugging Face MCP server (`McpClient.CreateAsync` + `HttpClientTransport`) and discover its tools (`ListToolsAsync`) |
+| Scenario 2 | Agent with the MCP tools (`ChatClientAgentOptions`) and structured output (`RunAsync<T>`), with the list of tools called |
+| Scenario 3 | Give the agent only the MCP tool it needs, and compare the token usage |
+| Scenario 4 (bonus) | **Responses API**: the same MCP client and tools on `GetResponsesClient()` — MCP orchestrated by your application works with both APIs |
+| Scenario 5 (bonus) | **Hosted MCP** (`HostedMcpServerTool`): the service lists and calls the tools of the MCP server; who ran each call, local or hosted |
+
+---
+
+### Lab 05 - AI Agent with Sessions
+
+**Learn how to hold, save and resume conversations (`AgentSession`), where their chat history is stored (`ChatHistoryProvider`) and how to keep it bounded**
+
+| Scenario | Description |
+|----------|-------------|
+| Scenario 1 | Session with the default in-memory chat history: `CreateSessionAsync`, `SerializeSessionAsync` / `DeserializeSessionAsync`, the messages kept in the session |
+| Scenario 2 | Bound the chat history with a chat reducer (`MessageCountingChatReducer`): the cost of each run stops growing, and the agent forgets the beginning of the conversation |
+| Scenario 3 | Custom `ChatHistoryProvider` storing the chat history in MongoDB: the serialized session only holds a key, a new agent resumes it after a simulated restart (MongoDB container provided) |
+| Scenario 4 (bonus) | **Responses API**, state kept by the service: the session holds a response id (`previous_response_id`), the service keeps the conversation 30 days; check it and delete it |
+| Scenario 5 (bonus) | **Responses API without storage** (`store = false`): the same `ChatHistoryProvider` keeps the conversation in your storage, under your business id; the four identifiers of a conversation |
+
+---
+
+### Lab 06 - Agent-to-Agent Communication (A2A)
+
+**Learn how agents call each other over HTTP with the Agent-to-Agent protocol (A2A v1)**
+
+This lab is split into two parts: start the server, then run the client.
+
+#### Lab 06 - A2A Server
+
+| Scenario | Description |
+|----------|-------------|
+| Scenario 1 | Host two agents in ASP.NET Core (`AddA2AServer`): an AuthAgent with API key tools and a CustomerToneAgent, exposed with the JSON-RPC and HTTP+JSON bindings (`MapA2AJsonRpc`, `MapA2AHttpJson`), described by their agent cards (`MapWellKnownAgentCard`), with a session store per agent so that clients can have conversations (`InMemoryAgentSessionStore`) |
+
+#### Lab 06 - A2A Client
+
+| Scenario | Description |
+|----------|-------------|
+| Scenario 1 | Discover the AuthAgent from its agent card (`A2ACardResolver.GetAgentCardAsync`, `AgentCard.AsAIAgent`), then generate an API key and validate it (and a tampered copy) |
+| Scenario 2 | Connect to the CustomerToneAgent by URL, without an agent card (`A2AClient.AsAIAgent`) |
+| Scenario 3 | Give the remote AuthAgent to a local Azure OpenAI agent as a function tool (`AsAIFunction`) |
+| Scenario 4 | Have a conversation with the remote AuthAgent: a session keeps the same A2A `contextId`, and the server keeps the history (`CreateSessionAsync`) |
+
+---
+
+### Lab 16 - Expose a REST API as a Remote MCP Server
+
+*Part of the essential learning path, after Lab 06 (step 4). For teams that own a REST microservice and want AI agents of other teams to use some of its capabilities, **without building an agent themselves**.*
+
+**Learn how a provider team puts a remote MCP server in front of an existing REST API (no agent, no model), and how a consumer team's agent uses it**
+
+This lab is split into two parts, like Lab 06: the provider side (no Azure OpenAI needed), then the consumer side.
+
+#### Lab 16 - REST API MCP Server (provider team)
+
+| Scenario | Description |
+|----------|-------------|
+| Scenario 1 | Map 4 of the 8 endpoints of the provided `OrdersApi` microservice to MCP tools (`[McpServerTool]`, `[Description]`, `UseStructuredContent`, annotations), called through a typed `HttpClient`; list and call them as an MCP client |
+| Scenario 2 | Turn the REST errors (404, 409, 500, invalid arguments) into MCP tool errors with a call-tool filter, without leaking internals |
+| Scenario 3 | Protect the server as an OAuth resource: bearer tokens (audience, scopes), Protected Resource Metadata (`AddMcp`), `[Authorize]` per tool (`AddAuthorizationFilters`); the MCP server calls the API with its own credential (no token passthrough) |
+| Scenario 4 | Run it as an independent service: `/health`, stateless Streamable HTTP, environment variables, Dockerfiles and `docker compose` |
+
+#### Lab 16 - REST API MCP Client (consumer team)
+
+| Scenario | Description |
+|----------|-------------|
+| Scenario 1 | Get a token (client credentials), connect an MCP client with it, give the remote tools to an Azure OpenAI agent |
+| Scenario 2 | The agent places an order, reads a 409 tool error (not enough stock) and adapts its call; an unknown order (404) |
+| Scenario 3 | A read-only client does not get the write tool, and a direct call is refused by the server |
+
+---
+
+### Lab 07 - Agentic RAG with a Vector Store
+
+**Learn how to build agents that answer from your own data (RAG): embeddings, vector store, search tool and `TextSearchProvider`**
+
+| Scenario | Description |
+|----------|-------------|
+| Scenario 1 | Fill an in-memory vector store (`InMemoryVectorStore`, `Microsoft.Extensions.VectorData`) with a FAQ: the store embeds the entries with an Azure OpenAI embedding deployment |
+| Scenario 2 | Semantic search without an agent (`SearchAsync`, `VectorSearchResult<T>` with scores) |
+| Scenario 3 | Agentic RAG: the search is a function tool (`AIFunctionFactory.Create`), the agent decides when to call it; tool calls and token usage displayed |
+| Scenario 4 | RAG with `TextSearchProvider` (`ChatClientAgentOptions.AIContextProviders`): the FAQ is searched before every model call, with a follow-up question in a session |
+| Scenario 5 (bonus) | **Responses API with your own vector store**: the same search tool, and nothing stored by the service (`store = false`) |
+| Scenario 6 (bonus) | **Hosted file search**: upload the FAQ to the service, which stores, chunks, embeds and searches it (`HostedFileSearchTool`); citations, clean-up, and the comparison with your RAG |
+
+---
+
+### Lab 08 - Data Format Comparison
+
+*Optional: outside the essential learning path.*
+
+**Learn how the format of the data exchanged with the model (tool results and answers) changes the token usage**
+
+| Scenario | Description |
+|----------|-------------|
+| Scenario 1 | JSON: the tool returns objects (serialized as JSON by the framework) and the agent answers with structured output (`RunAsync<List<Hotel>>`); tool calls, tool result size and token usage displayed |
+| Scenario 2 | CSV: the tool returns CSV text and the instructions ask for a CSV answer, parsed back into objects (`FormatException` when the format is not respected) |
+| Comparison | Tool result size, input, output and total tokens of both runs side by side |
+
+---
+
+### Lab 09 - Control an Agent: Human Approval and Guardrails
+
+**Learn how to make an agent pause before a sensitive tool runs (human-in-the-loop): `ApprovalRequiredAIFunction`, `ToolApprovalRequestContent`, `CreateResponse` and the same `AgentSession`; then how to add guardrails with an agent run middleware**
+
+| Scenario | Description |
+|----------|-------------|
+| Scenario 1 | Human approval at the console: the run pauses with an approval request (function + arguments), you reply Y or N, the agent continues in the same session; tool result and token usage of the whole flow displayed |
+| Scenario 2 | Several approval requests decided by a policy: a harmless tool runs without approval, each sensitive call is approved or rejected with a reason by code (`CreateResponse(approved, reason)`), and the rejection the model received is shown |
+| Scenario 3 | Guardrails with an agent run middleware (`AsBuilder().Use(runFunc: ...)`): a forbidden question is answered by the middleware without calling the model, personal data is masked in the request and checked in the answer |
+
+---
+
+### Lab 10 - Expose an AI Agent as an MCP Tool
+
+*Optional: outside the essential learning path. Its README compares the two ways to expose an agent: MCP or A2A.*
+
+**Learn how to expose your AI agent as a tool of an MCP server (`AsAIFunction`, `McpServerTool.Create`), over Streamable HTTP and stdio, for other applications and agents**
+
+| Scenario | Description |
+|----------|-------------|
+| Scenario 1 | Remote MCP server over Streamable HTTP (ASP.NET Core, `WithHttpTransport` + `MapMcp`): the program connects as an MCP client, lists the tool (name, description, `query` parameter) and calls the agent |
+| Scenario 2 | Local MCP server over stdio (`WithStdioServerTransport`): the program is the MCP host and starts itself with `--stdio` as a child process (stdout reserved for MCP messages, server log on stderr) |
+| Scenario 3 | Another agent uses the exposed agent: the MCP tool is given to an `OfficeAssistant`, which delegates a booking to the `CompanyAssistant` through MCP; tool calls and token usage displayed |
+| Optional | `--http` / `--stdio` keep a server running for MCP Inspector or VS Code |
+
+---
+
+### Lab 11 - Observe an Agent: HTTP Transport and OpenTelemetry
+
+**Learn how to observe an agent: plug your own `HttpClient` into the OpenAI SDK (`OpenAIClientOptions.Transport`, `HttpClientPipelineTransport`) and intercept every request with a `DelegatingHandler` (header, traffic logged with the credentials masked, duration, request count), then trace the agent with OpenTelemetry**
+
+| Scenario | Description |
+|----------|-------------|
+| Scenario 1 | See the HTTP traffic of an agent run: the v1 URL, the headers (custom `X-agent-name` added, `Authorization` masked), the JSON bodies, the status and duration of the call; one request, its token usage |
+| Scenario 2 | One agent run, several HTTP requests: with a function tool, the first response asks for the tool (`tool_calls`), a second request sends the tool result (`"role": "tool"`); the token usage of the run is the total of both |
+| Scenario 3 | Observe an agent with OpenTelemetry (`UseOpenTelemetry` on the chat client and on the agent, `TracerProvider`): the spans of a travel assistant that calls a weather agent as a tool — `invoke_agent`, `chat`, `execute_tool` — show the inner run and its tokens, which the `AgentResponse` of the caller does not count |
+
+---
+
+### Lab 12 - AI Agent with an AI Context Provider
+
+**Learn how to give an agent a long-term memory of its user with a custom `AIContextProvider` (`ProvideAIContextAsync` / `StoreAIContextAsync`, `ChatClientAgentOptions.AIContextProviders`, state in the session), memories extracted with structured output and stored in MongoDB**
+
+| Scenario | Description |
+|----------|-------------|
+| Scenario 1 | Remember the user from one session to another: the user introduces herself, the provider extracts the facts (another agent, `RunAsync<T>`) and stores them in MongoDB; in a new session (empty chat history), the provider adds them to the request as a message framed as data (not as instructions, kept out of the chat history) and the agent knows her name and preferences; token usage displayed |
+| Scenario 2 | Chat with the agent at the console: it speaks first (`RunAsync(session)`) and greets you with what it remembers, then stores what you tell it — still known at the next run |
+
+---
+
+### Lab 14 - Evaluate an Agent
+
+**Learn how to test an agent like code: a dataset of questions with expected answers and expected tool calls, deterministic checks, LLM-as-judge scores, and a regression caught before it ships**
+
+| Scenario | Description |
+|----------|-------------|
+| Scenario 1 | Evaluate an agent with deterministic checks (`EvaluateAsync`, `LocalEvaluator`, `EvalChecks.ContainsExpected` / `ToolCallArgsMatch`, a custom `FunctionEvaluator`): per question, each check with its reason |
+| Scenario 2 | Score the same answers with an LLM judge (`RelevanceEvaluator`, `CoherenceEvaluator`, `ChatConfiguration`), evaluating responses already obtained |
+| Scenario 3 | Catch a regression: the same dataset on the reference and on new instructions, compared question by question; consistency measured with `numRepetitions` |
+
+---
+
+### Lab 15 - Give an Agent Skills
+
+**Learn how to package expertise as Agent Skills — `SKILL.md` files and skills defined in code — loaded on demand by the agent, with approvals on the skill tools**
+
+| Scenario | Description |
+|----------|-------------|
+| Scenario 1 | Skills from `SKILL.md` files (`AgentSkillsProvider`): the agent loads the matching skill and reads its reference document (progressive disclosure), and no skill for an unrelated question |
+| Scenario 2 | A skill defined in code (`AgentInlineSkill`): a static resource, a resource computed at read time, and a script run in the program |
+| Scenario 3 | Approve the skill tools (`UseToolApproval`): every skill tool waits for an approval by default; the read-only tools are auto-approved and a policy decides on scripts (approved for 2.5 kg, rejected for 120 kg) |
+
+---
+
+### Lab 13 - Host an Agent in an ASP.NET Core API
+
+**Learn how to turn an agent into a web API for an application: the agent in dependency injection, an endpoint protected by JWT bearer tokens that streams the answer (Server-Sent Events), and conversations kept between requests and bound to each user**
+
+| Scenario | Description |
+|----------|-------------|
+| Scenario 1 | Requests refused before the agent runs: no token (`RequireAuthorization`, 401), an empty message (400, problem details) |
+| Scenario 2 | Alice: a streamed answer (`RunStreamingAsync`, `TypedResults.ServerSentEvents`), with a tool that reads the user from the token, not from the model |
+| Scenario 3 | Alice: the conversation continues in another HTTP request (`SerializeSessionAsync` / `DeserializeSessionAsync`, store keyed by user and conversation) |
+| Scenario 4 | Bob sends the conversation id of Alice: he gets his own conversation — a conversation id is not a proof of ownership |
+
+---
+
+### Part 2: MultiAgentSystem - Multi-Agent Solutions
+
+This part focuses on building **multi-agent systems** where multiple agents collaborate to solve complex problems. You will learn how to orchestrate agents, use agents as tools, and build sophisticated AI workflows.
+
+> The three labs target Agent Framework **1.27.0** (stable APIs only) and are available in the Lab Bench dashboard.
+
+---
+
+### Lab 01 - Delegate a Task to Another Agent
+
+**Learn the two ways to delegate a task to another agent: by code, or by the model with an agent turned into a tool**
+
+| Scenario | Description |
+|----------|-------------|
+| Scenario 1 | Delegation by code: the code asks a reviewer agent for a typed review (`RunAsync<T>`) of an answer, and decides with a fixed rule |
+| Scenario 2 | Delegation by the model: a front desk agent consults specialist agents turned into tools (`AsAIFunction`); read the query each one receives and the text it returns |
+| Scenario 3 | Keep the context of a specialist across calls with a session (`AsAIFunction(session: ...)`), compared with a new session for each call |
+
+---
+
+### Lab 02 - Sequential Orchestration: a Pipeline of Agents
+
+**Learn how to chain agents in a sequential workflow: build it, run it, follow it, choose the context each agent receives, and keep a human in the loop**
+
+| Scenario | Description |
+|----------|-------------|
+| Scenario 1 | Build a two-step pipeline with `AgentWorkflowBuilder.BuildSequential`, run it with a `TurnToken`, read its output (`WorkflowOutputEvent`) and its errors |
+| Scenario 2 | Follow a three-step pipeline through its events (`ExecutorInvokedEvent`, `AgentResponseUpdateEvent`): what each agent receives and its token usage, with the whole conversation (default) or the previous agent only (`chainOnlyAgentResponses`) |
+| Scenario 3 | Human in the loop: the last agent's tool requires an approval (`ApprovalRequiredAIFunction`); the workflow pauses (`RequestInfoEvent`) until the code answers with `SendResponseAsync` |
+
+---
+
+### Lab 03 - Concurrent Orchestration: Agents in Parallel
+
+**Learn how to run agents in parallel on the same input, measure what it changes, and combine their answers**
+
+| Scenario | Description |
+|----------|-------------|
+| Scenario 1 | Build a concurrent workflow with `AgentWorkflowBuilder.BuildConcurrent` (fan-out, fan-in) and read the aggregated answers of three after-sales specialists |
+| Scenario 2 | Follow the run with its events: the agents work at the same time, each one with the customer message only; time and token usage of each agent |
+| Scenario 3 | Combine the answers: a custom aggregator merges them in a fixed order, then a reply writer turns them into one reply to the customer |
+
+---
+
+## Common Utilities
+
+The `CommonUtilities` project provides shared helper classes used across all labs:
+
+| Class | Description |
+|-------|-------------|
+| `ColoredConsole` | Colored console output methods for better UX |
+| `ConsoleSpinner` | Loading animation for async operations |
+| `AzureOpenAIEndpoint` | Converts the Azure OpenAI resource endpoint into its v1 API endpoint (`…/openai/v1/`) |
+
+---
+
+## Getting Started
+
+1. **Clone the repository** and check the [prerequisites](#prerequisites)
+   ```bash
+   git clone https://github.com/mbensaidtech/agent-framework-labs.git
+   cd agent-framework-labs
+   dotnet --version   # 10.0 or newer
+   ```
+
+2. **Configure Azure OpenAI once** — see [Configure Azure OpenAI](#configure-azure-openai)
+
+3. **Choose a lab** (AzureOpenAI/Lab01 recommended for beginners), read its `README.md` and complete the TODOs in `Start/Program.cs`, using the agent names, instructions and questions provided in `Start/LabPrompts.cs`
+
+4. **Run it** with either option (see [Running the Labs](#running-the-labs-cli-or-dashboard)):
+   ```bash
+   # Option A — CLI
+   dotnet run --project LearningLabs/AzureOpenAI/Lab01-FirstBasicAIAgent/Start
+
+   # Option B — Dashboard: then open http://127.0.0.1:5057, select the lab and click Run
+   cd Dashboard/LabDashboard && dotnet run
+   ```
+
+---
+
+## Environment Variables Configuration
+
+Instead of editing each `appsettings.json` file in every lab, you can set environment variables once. The .NET configuration system automatically reads environment variables using the pattern `SectionName__PropertyName` (double underscore).
+
+### Required Variables
+
+| Variable | Description | Example |
+|----------|-------------|---------|
+| `AzureOpenAI__Endpoint` | Your Azure OpenAI endpoint URL | `https://my-resource.openai.azure.com/` |
+| `AzureOpenAI__ChatDeploymentName` | Your chat model deployment name | `gpt-4o` |
+| `AzureOpenAI__APIKey` | Optional API key (if unset, `DefaultAzureCredential` is used) | `<your-api-key>` |
+| `AzureOpenAI__EmbeddingDeploymentName` | Your embedding model deployment (Lab07+) | `text-embedding-3-small` |
+| `AzureOpenAI__EmbeddingEndpoint` | Optional (Lab07): another Azure OpenAI resource for the embeddings; unset, Lab07 uses the endpoint of the chat deployment | `https://my-embedding-resource.openai.azure.com/` |
+| `AzureOpenAI__EmbeddingAPIKey` | Optional (Lab07), with `EmbeddingEndpoint`: its API key (unset: Microsoft Entra ID, never the chat key) | `<your-embedding-api-key>` |
+| `MongoDB__ConnectionString` | Optional MongoDB connection string (Lab05, Lab12): their `appsettings.json` already target their own containers (27017 / 27018), a variable overrides both | `mongodb://localhost:27017` |
+
+### Linux / macOS
+
+Add the following to your `~/.bashrc` or `~/.zshrc` file:
+
+```bash
+# Azure OpenAI Configuration
+export AzureOpenAI__Endpoint="https://YOUR-RESOURCE.openai.azure.com/"
+export AzureOpenAI__ChatDeploymentName="YOUR-DEPLOYMENT-NAME"
+export AzureOpenAI__EmbeddingDeploymentName="YOUR-EMBEDDING-DEPLOYMENT-NAME"
+
+# MongoDB Configuration (optional, overrides the appsettings.json of Lab05 and Lab12)
+export MongoDB__ConnectionString="mongodb://localhost:27017"
+```
+
+Then reload your shell:
+
+```bash
+source ~/.bashrc
+# or for zsh
+source ~/.zshrc
+```
+
+### Windows (PowerShell - Current Session)
+
+```powershell
+# Azure OpenAI Configuration
+$env:AzureOpenAI__Endpoint = "https://YOUR-RESOURCE.openai.azure.com/"
+$env:AzureOpenAI__ChatDeploymentName = "YOUR-DEPLOYMENT-NAME"
+$env:AzureOpenAI__EmbeddingDeploymentName = "YOUR-EMBEDDING-DEPLOYMENT-NAME"
+
+# MongoDB Configuration (optional, overrides the appsettings.json of Lab05 and Lab12)
+$env:MongoDB__ConnectionString = "mongodb://localhost:27017"
+```
+
+### Windows (Permanent - System Environment Variables)
+
+1. Open **System Properties** → **Advanced** → **Environment Variables**
+2. Under **User variables**, click **New** for each variable:
+   - Variable name: `AzureOpenAI__Endpoint`
+   - Variable value: `https://YOUR-RESOURCE.openai.azure.com/`
+3. Repeat for other variables
+4. Click **OK** and restart your terminal
+
+**Or using PowerShell (Administrator):**
+
+```powershell
+[Environment]::SetEnvironmentVariable("AzureOpenAI__Endpoint", "https://YOUR-RESOURCE.openai.azure.com/", "User")
+[Environment]::SetEnvironmentVariable("AzureOpenAI__ChatDeploymentName", "YOUR-DEPLOYMENT-NAME", "User")
+[Environment]::SetEnvironmentVariable("AzureOpenAI__EmbeddingDeploymentName", "YOUR-EMBEDDING-DEPLOYMENT-NAME", "User")
+[Environment]::SetEnvironmentVariable("MongoDB__ConnectionString", "mongodb://localhost:27017", "User")
+```
+
+### Verify Your Configuration
+
+Run this command to verify your environment variables are set:
+
+```bash
+# Linux/macOS
+echo $AzureOpenAI__Endpoint
+
+# Windows PowerShell
+echo $env:AzureOpenAI__Endpoint
+```
+
+> **Note:** Environment variables take precedence over values in `appsettings.json`. You can still use `appsettings.json` for lab-specific overrides if needed.
+>
+> Migrated labs also read **user secrets** (shared id `microsoft-agent-framework-learninglabs`), the recommended place for the API key during local development:
+> `dotnet user-secrets set "AzureOpenAI:APIKey" "<your-api-key>"` (run from any lab project folder),
+> or, without a terminal, the **AI models** settings of the [Lab Bench dashboard](Dashboard/README.md#ai-models-settings), which write the same file.
+
+---
+
+## Learning Path
+
+The labs keep their numbers, but the **essential path** follows the order below. Lab 08 and Lab 10 are **optional**.
+
+> **One path, defined once.** The stages and the order of the labs are defined in [`Dashboard/LabDashboard/labs.json`](Dashboard/LabDashboard/labs.json) (`stages`, and the order of `labs`): the Lab Bench dashboard, the trainer's admin dashboard and the training roadmap ([`Roadmap-Formation-Session2.html`](Roadmap-Formation-Session2.html), regenerated with `python3 Dashboard/tools/generate-roadmap.py`) all read it. To change the path, edit `labs.json`, regenerate the roadmap, and update the diagram below: `dotnet test` (in `Dashboard/`) fails while they disagree.
+
+```
+┌──────────────────────────────────────────────────────────────────────────────────────────────┐
+│ 1. Build an agent                                                                            │
+│    Lab01 Agent (+ Responses API) → Lab02 Structured output → Lab03 Tools → Lab04 MCP client  │
+├──────────────────────────────────────────────────────────────────────────────────────────────┤
+│ 2. Conversations and control                                                                 │
+│    Lab05 Sessions (+ Responses API) → Lab09 Human approval and guardrails                    │
+├──────────────────────────────────────────────────────────────────────────────────────────────┤
+│ 3. Knowledge and memory                                                                      │
+│    Lab07 RAG (+ hosted file search) → Lab12 Memory (context provider) → Lab15 Agent Skills   │
+├──────────────────────────────────────────────────────────────────────────────────────────────┤
+│ 4. Agents working with agents                                                                │
+│    MultiAgentSystem Lab01 Delegate a task to another agent (same process)                    │
+│    → MultiAgentSystem Lab02 Sequential orchestration (a pipeline of agents, a workflow)      │
+│    → MultiAgentSystem Lab03 Concurrent orchestration (agents in parallel)                    │
+│    → Lab06 A2A server → Lab06 A2A client (remote agents, A2A — preview packages)             │
+│    → Lab16 REST API as a remote MCP server → Lab16 MCP client (a microservice for agents)    │
+├──────────────────────────────────────────────────────────────────────────────────────────────┤
+│ 5. In production                                                                             │
+│    Lab11 Observe an agent (HTTP, OpenTelemetry) → Lab14 Evaluate an agent                    │
+│    → Lab13 Host an agent in an ASP.NET Core API                                              │
+└──────────────────────────────────────────────────────────────────────────────────────────────┘
+  Optional: Lab10 Expose an agent as an MCP tool · Lab08 Data formats and token usage
+```
+
+> **Note:** While we recommend following the labs in order, there are **no strict dependencies** between the different labs. If you already have some knowledge in a specific area, feel free to jump to any lab that interests you.
+
+---
+
+## Useful Links
+
+- [Microsoft Agent Framework](https://github.com/microsoft/agent-framework)
+- [Microsoft Agents Documentation](https://learn.microsoft.com/en-us/agent-framework/)
+- [Azure OpenAI Documentation](https://learn.microsoft.com/azure/ai-services/openai/)
+- [Model Context Protocol (MCP)](https://modelcontextprotocol.io/)
+
+---
+
+## Contributing
+
+If you find issues or have suggestions for improving these labs, please [open an issue](https://github.com/mbensaidtech/agent-framework-labs/issues).
+This repository is published from the trainer's working repository: every fix lands there first, then reaches this repository automatically, so pull requests are read but not merged as such.
+
+---
+
+## License
+
+[MIT](LICENSE)
+
+---
+
+## Author
+
+**Mohammed BEN SAID**
+
+---
+
+**Happy Learning! 🚀**

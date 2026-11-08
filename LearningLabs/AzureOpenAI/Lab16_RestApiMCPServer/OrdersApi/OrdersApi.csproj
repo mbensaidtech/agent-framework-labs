@@ -1,0 +1,13 @@
+<Project Sdk="Microsoft.NET.Sdk.Web">
+
+  <!--
+    PROVIDED - the existing microservice of the provider team. It knows nothing about AI agents nor MCP:
+    no package of Agent Framework, of MCP or of Azure OpenAI. The lab never modifies it.
+  -->
+  <PropertyGroup>
+    <TargetFramework>net10.0</TargetFramework>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+  </PropertyGroup>
+
+</Project>

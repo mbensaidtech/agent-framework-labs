@@ -1,0 +1,219 @@
+using System.ClientModel;
+using System.ClientModel.Primitives;
+using Azure.Identity;
+using Microsoft.Agents.AI;
+using Microsoft.Extensions.AI;
+using OpenAI;
+using OpenAI.Chat;
+using CommonUtilities;
+using ChatMessage = Microsoft.Extensions.AI.ChatMessage;
+
+using AIAgentWithAIContextProvider;
+using static AIAgentWithAIContextProvider.MemoryConsole;
+
+// ============================================
+// SCENARIO SELECTION - Choose which scenarios to run
+// ============================================
+// dotnet run                          -> the implemented scenarios (a scenario whose code is still the delivered one is left out)
+// dotnet run -- --scenarios 2         -> scenario 2 only (and the scenarios it requires)
+// dotnet run -- --scenarios 1,3       -> scenarios 1 and 3
+// dotnet run -- --list-scenarios      -> the scenarios of this lab and their state
+ScenarioSelection scenarioSelection = ScenarioSelection.FromArgs(args);
+// ============================================
+
+bool ShouldRunScenario(int scenario) => scenarioSelection.ShouldRun(scenario);
+
+// The user of this lab. Its memories are stored under this id.
+// In a real application, it is the id of the signed-in user.
+const string UserId = "ada";
+
+// The agent that talks with the user (Agents.MemoryAssistant), the agent that the context provider uses to extract memories
+// (Agents.MemoryExtractor) and the conversation of scenario 1 (Questions.Introduction, then Questions.RecallNameDinnerAndActivity
+// in a new session) are provided in LabPrompts.cs.
+
+#region Setup: Configuration and Client Initialization
+
+// Step 1: Load Azure OpenAI settings from configuration
+var settings = ConfigurationHelper.GetAzureOpenAISettings();
+Console.WriteLine($"Endpoint: {settings.Endpoint}");
+Console.WriteLine($"Deployment: {settings.ChatDeploymentName}");
+
+// TODO 1: Create the OpenAIClientOptions that point to the Azure OpenAI v1 endpoint
+// Hint: AzureOpenAIEndpoint.ToV1Uri(settings.Endpoint) turns "https://<resource>.openai.azure.com/" into ".../openai/v1/"
+// OpenAIClientOptions clientOptions = ...
+
+// TODO 2: Create the OpenAIClient
+// - If settings.APIKey is set: authenticate with an ApiKeyCredential
+// - Otherwise: authenticate with Microsoft Entra ID using a BearerTokenPolicy built from
+//   DefaultAzureCredential and the scope "https://ai.azure.com/.default"
+// Note: the AuthenticationPolicy constructor is flagged experimental (OPENAI001), keep the pragma around it.
+#pragma warning disable OPENAI001
+// OpenAIClient client = ...
+#pragma warning restore OPENAI001
+
+// TODO 3: Get a ChatClient (Chat Completions API) for the deployment
+// ChatClient chatClient = ...
+
+#endregion
+
+#region Agent with a long-term memory (shared by both scenarios)
+
+ColoredConsole.WriteDividerLine();
+ColoredConsole.WriteInfoLine("Agent with a long-term memory - the memories of the user are stored outside of the application");
+ColoredConsole.WritePrimaryLogLine($"User id: {UserId}");
+ColoredConsole.WritePrimaryLogLine($"{Agents.MemoryAssistant.Name} instructions: {Agents.MemoryAssistant.Instructions}");
+ColoredConsole.WritePrimaryLogLine($"Memory extractor instructions: {Agents.MemoryExtractor.Instructions}");
+
+// TODO 4: Open the repository of the memories (MongoDB with or without Docker, or a JSON file: choose it with Storage:Mode, see the README)
+// Hint: await ConfigurationHelper.CreateUserMemoriesRepositoryAsync()
+// IUserMemoriesRepository memoriesRepository = ...
+
+// TODO 5: Create the agent that extracts memories from a user message (the context provider will use it),
+// with the instructions and the name of Agents.MemoryExtractor (provided in LabPrompts.cs)
+// Hint: chatClient.AsAIAgent(instructions: Agents.MemoryExtractor.Instructions, name: Agents.MemoryExtractor.Name)
+// AIAgent memoryExtractor = ...
+
+// TODO 6: Create the agent with the context provider (UserMemoryAIContextProvider, at the bottom of this file)
+// Hint: chatClient.AsAIAgent(new ChatClientAgentOptions { ... }) with:
+//   - the name and the instructions of Agents.MemoryAssistant:
+//     Name = Agents.MemoryAssistant.Name and ChatOptions = new() { Instructions = Agents.MemoryAssistant.Instructions }
+//   - AIContextProviders = [new UserMemoryAIContextProvider(memoryExtractor, memoriesRepository,
+//         stateInitializer: _ => new UserMemoryAIContextProvider.State(UserId))]
+//   - ChatHistoryProvider = new InMemoryChatHistoryProvider(new InMemoryChatHistoryProviderOptions { StorageInputRequestMessageFilter = ... })
+//         that keeps the messages added by the provider out of the chat history (AgentRequestMessageSourceType, see the README)
+// AIAgent memoryAgent = ...
+
+#endregion
+
+#region Scenario 1: Remember the user from one session to another
+
+if (ShouldRunScenario(1))
+{
+    ColoredConsole.WriteDividerLine();
+    ColoredConsole.WriteInfoLine("=== Scenario 1: Remember the user from one session to another ===");
+
+    // TODO 7: Start from an empty memory: delete the memories of the user, and display how many were deleted
+    // Hint: await memoriesRepository.DeleteMemoriesAsync(UserId)
+
+    ColoredConsole.WriteInfoLine("First session");
+    ColoredConsole.WriteUserLine($"User: {Questions.Introduction}");
+
+    // TODO 8: Create a session, run the agent with Questions.Introduction in it and display the answer ("Agent: ...")
+    // Before the model call, the provider adds the memories to the request (a message); after it, it extracts and stores the new ones.
+
+    // TODO 9: Display the memories stored for the user
+    // Hint: WriteStoredMemories(UserId, await memoriesRepository.GetMemoriesAsync(UserId))
+
+    ColoredConsole.WriteDividerLine();
+    ColoredConsole.WriteInfoLine("New session (empty chat history)");
+    ColoredConsole.WriteUserLine($"User: {Questions.RecallNameDinnerAndActivity}");
+
+    // TODO 10: Create a NEW session, run the agent with Questions.RecallNameDinnerAndActivity in it, display the answer, then WriteTokenUsage(...)
+    // The chat history of this session is empty: what the agent knows about the user comes from the provider.
+}
+
+#endregion
+
+#region Scenario 2: Chat with the agent - it greets you with what it remembers
+
+if (ShouldRunScenario(2))
+{
+    ColoredConsole.WriteDividerLine();
+    ColoredConsole.WriteInfoLine("=== Scenario 2: Chat with the agent - it greets you with what it remembers ===");
+
+    // TODO 11: Create a new session and let the agent start the conversation: RunAsync(session), without a message.
+    // Display the greeting ("Agent: ...")
+
+    ColoredConsole.WriteSecondaryLogLine("Type a message, or an empty line / 'exit' to end the chat.");
+
+    // TODO 12: Chat in the same session until an empty message or "exit":
+    // - Console.Write("You: ") then Console.ReadLine() (null when the input is closed)
+    // - run the agent with the message in the session and display the answer
+
+    ColoredConsole.WriteInfoLine("Chat ended. Run scenario 2 again: the agent still remembers what you told it (the memories are stored outside of the application).");
+}
+
+#endregion
+
+#region Context provider: a long-term memory of the user, in a repository
+
+/// <summary>
+/// An <see cref="AIContextProvider"/> that gives the agent a long-term memory of the user.
+/// <list type="bullet">
+/// <item><description>Before each model call (<see cref="ProvideAIContextAsync"/>): loads the memories of the user from the repository
+/// and adds them to the request of the run, as a message framed as data.</description></item>
+/// <item><description>After each successful run (<see cref="StoreAIContextAsync"/>): extracts the new facts from the user message
+/// with another agent (structured output) and stores them in the repository.</description></item>
+/// </list>
+/// One instance is attached to the agent and shared by all its sessions: it keeps no session data in its fields.
+/// The id of the user lives in the session (<see cref="AgentSession.StateBag"/>), through <see cref="ProviderSessionState{TState}"/>.
+/// </summary>
+internal sealed class UserMemoryAIContextProvider : AIContextProvider
+{
+    private readonly AIAgent _memoryExtractor;
+    private readonly IUserMemoriesRepository _memoriesRepository;
+    private readonly ProviderSessionState<State> _sessionState;
+    private IReadOnlyList<string>? _stateKeys;
+
+    /// <param name="memoryExtractor">The agent that extracts memories from a user message.</param>
+    /// <param name="memoriesRepository">The storage of the memories (MongoDB or a JSON file).</param>
+    /// <param name="stateInitializer">Gives the state of a session the first time the provider sees it: the id of the user.</param>
+    public UserMemoryAIContextProvider(AIAgent memoryExtractor, IUserMemoriesRepository memoriesRepository, Func<AgentSession?, State> stateInitializer)
+    {
+        _memoryExtractor = memoryExtractor;
+        _memoriesRepository = memoriesRepository;
+        _sessionState = new ProviderSessionState<State>(stateInitializer, stateKey: nameof(UserMemoryAIContextProvider));
+    }
+
+    /// <summary>The key of the state of this provider in <see cref="AgentSession.StateBag"/> (unique among the providers of the agent).</summary>
+    public override IReadOnlyList<string> StateKeys => _stateKeys ??= [_sessionState.StateKey];
+
+    /// <summary>
+    /// Called before each model call: returns the context to add to the run (here, a message with the memories).
+    /// </summary>
+    protected override async ValueTask<AIContext> ProvideAIContextAsync(InvokingContext context, CancellationToken cancellationToken = default)
+    {
+        // TODO 13: Give the memories of the user to the model
+        // - get the id of the user from the state of the session: _sessionState.GetOrInitializeState(context.Session).UserId
+        // - load the memories of the user from the repository and display them with WriteMemoriesProvided(userId, memories)
+        // - return a new AIContext whose Messages contain one user message that lists the memories, framed as data:
+        //   ContextTexts.MemoriesIntroduction (provided in LabPrompts.cs) followed by one "- memory" line per memory
+        //   (or an empty AIContext when there is none). Not Instructions: they are sent as the system message.
+        // Replace the last line of this method.
+
+        // Until TODO 13 is done, the provider adds nothing: the base class returns an empty AIContext
+        return await base.ProvideAIContextAsync(context, cancellationToken);
+    }
+
+    /// <summary>
+    /// Called after each successful run: <c>context.RequestMessages</c> only contains the messages passed to <c>RunAsync</c>
+    /// (not the chat history, not the context of the providers), and <c>context.ResponseMessages</c> the answer of the agent.
+    /// </summary>
+    protected override async ValueTask StoreAIContextAsync(InvokedContext context, CancellationToken cancellationToken = default)
+    {
+        // TODO 14: Get the user messages of the run (none when the agent spoke first: WriteNothingToExtract() and return),
+        // then the id of the user (same as TODO 13) and the memories already known for this user
+
+        // TODO 15: Ask the memory extractor for the new facts, as structured output: RunAsync<ExtractedMemories>(messages)
+        // with a system message that lists the facts already known, followed by the user messages
+        // Hint: the system message is ContextTexts.KnownFactsIntroduction followed by the known facts, one per line
+        //       (ContextTexts.NoKnownFact when there is none: knownMemories.DefaultIfEmpty(ContextTexts.NoKnownFact))
+
+        // TODO 16: Store the new memories in the repository (skip the empty and already known ones),
+        // then display them with WriteMemoriesExtracted(userId, newMemories, extraction.Usage)
+        // Replace the last line of this method.
+
+        // Until TODO 16 is done, nothing is stored: the base class does nothing
+        await base.StoreAIContextAsync(context, cancellationToken);
+    }
+
+    /// <summary>
+    /// The state of the provider in a session, serialized with the session: the id of the user whose memories are used.
+    /// </summary>
+    public sealed class State(string userId)
+    {
+        public string UserId { get; } = userId ?? throw new ArgumentNullException(nameof(userId));
+    }
+}
+
+#endregion

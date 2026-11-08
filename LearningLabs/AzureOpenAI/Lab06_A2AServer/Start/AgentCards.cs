@@ -1,0 +1,95 @@
+using A2A;
+
+namespace A2AServer;
+
+/// <summary>
+/// Contains static methods for creating the agent card of each agent.
+/// An agent card is the discovery document of an A2A agent: who it is, what it can do (skills),
+/// and where and how to call it (supported interfaces: URL + protocol binding + protocol version).
+/// The name and the description of each card are those of the agent, provided in LabPrompts.cs.
+/// </summary>
+public static class AgentCards
+{
+    public static AgentCard CreateAuthAgentCard(string agentUrl)
+    {
+        var generateAPIKey = new AgentSkill
+        {
+            Id = "auth_agent_generate_api_key",
+            Name = "GenerateAPIKey",
+            Description = "Generates a new random API key that starts with 'Meknes'. The key includes a cryptographic signature for validation.",
+            Tags = ["api", "key", "security", "authentication"],
+            Examples =
+            [
+                "Generate a new API key",
+                "Create an API key for me",
+                "I need a new API key"
+            ],
+        };
+
+        var validateAPIKey = new AgentSkill
+        {
+            Id = "auth_agent_validate_api_key",
+            Name = "ValidateAPIKey",
+            Description = "Validates an API key by checking if it starts with 'Meknes' and verifying its cryptographic signature.",
+            Tags = ["api", "key", "security", "validation", "authentication"],
+            Examples =
+            [
+                "Validate this API key: Meknes...",
+                "Check if this API key is valid",
+                "Verify the API key"
+            ],
+        };
+
+        return new AgentCard
+        {
+            Name = Agents.Auth.Name,
+            Description = Agents.Auth.Description,
+            Version = "1.0.0",
+            DefaultInputModes = ["text/plain"],
+            DefaultOutputModes = ["text/plain"],
+            Capabilities = new AgentCapabilities
+            {
+                Streaming = false,
+                PushNotifications = false,
+            },
+            Skills = [generateAPIKey, validateAPIKey],
+            SupportedInterfaces = CreateInterfaces(agentUrl),
+        };
+    }
+
+    public static AgentCard CreateCustomerToneAgentCard(string agentUrl)
+    {
+        var detectTone = new AgentSkill
+        {
+            Id = "customer_tone_agent_detect_tone",
+            Name = "DetectTone",
+            Description = "Detects the tone of a customer's message (for example angry, neutral or satisfied).",
+            Tags = ["customer", "tone", "sentiment"],
+            Examples = ["What is the tone of this message: I have been waiting for two weeks!"],
+        };
+
+        return new AgentCard
+        {
+            Name = Agents.CustomerTone.Name,
+            Description = Agents.CustomerTone.Description,
+            Version = "1.0.0",
+            DefaultInputModes = ["text/plain"],
+            DefaultOutputModes = ["text/plain"],
+            Capabilities = new AgentCapabilities
+            {
+                Streaming = false,
+                PushNotifications = false,
+            },
+            Skills = [detectTone],
+            SupportedInterfaces = CreateInterfaces(agentUrl),
+        };
+    }
+
+    // The server maps both protocol bindings of A2A v1 at the same URL (MapA2AJsonRpc + MapA2AHttpJson).
+    // The order is the agent's preference: a client uses the first interface it also supports (here JSON-RPC).
+    private static List<AgentInterface> CreateInterfaces(string agentUrl) =>
+    [
+        new AgentInterface { Url = agentUrl, ProtocolBinding = ProtocolBindingNames.JsonRpc, ProtocolVersion = "1.0" },
+        new AgentInterface { Url = agentUrl, ProtocolBinding = ProtocolBindingNames.HttpJson, ProtocolVersion = "1.0" },
+    ];
+}

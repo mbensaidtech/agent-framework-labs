@@ -1,0 +1,38 @@
+# The provider side of Lab16, in containers: the REST microservice and its MCP server, two independent services.
+# From the root of the repository:
+#   docker compose -f LearningLabs/AzureOpenAI/Lab16_RestApiMCPServer/deploy/docker-compose.yml up --build
+# Then run Lab16_RestApiMCPClient as usual: it connects to http://localhost:5310/mcp.
+# Only the MCP server is published: the microservice stays on the internal network of the services.
+name: lab16-orders
+
+services:
+  orders-api:
+    build:
+      context: ../../../..
+      dockerfile: LearningLabs/AzureOpenAI/Lab16_RestApiMCPServer/deploy/OrdersApi.Dockerfile
+    environment:
+      # API keys of the callers of the microservice (development values: use the secrets of your platform)
+      OrdersApi__ApiKeys__orders-mcp-server: dev-orders-mcp-server-key
+      OrdersApi__ApiKeys__backoffice: dev-backoffice-key
+    healthcheck:
+      # The aspnet image has no curl: bash opens a TCP connection to the port
+      test: ["CMD", "bash", "-c", "exec 3<>/dev/tcp/127.0.0.1/8080"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+
+  orders-mcp-server:
+    build:
+      context: ../../../..
+      dockerfile: LearningLabs/AzureOpenAI/Lab16_RestApiMCPServer/deploy/McpServer.Dockerfile
+    depends_on:
+      orders-api:
+        condition: service_healthy
+    environment:
+      # The public address of the MCP server, as the clients see it: also the audience of the tokens
+      OrdersMcpServer__BaseUrl: http://localhost:5310
+      # The microservice, reached on the internal network, with the API key of the MCP server
+      OrdersApi__BaseUrl: http://orders-api:8080
+      OrdersApi__ApiKey: dev-orders-mcp-server-key
+    ports:
+      - "5310:8080"

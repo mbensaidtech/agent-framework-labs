@@ -1,0 +1,17 @@
+# Local MongoDB for scenario 3 of the lab.
+# Development only: no authentication, reachable from this computer only (127.0.0.1).
+# The explicit project name keeps this container and its volume apart from any other "MongoDB" compose project.
+name: lab05-aiagent-sessions
+
+services:
+  mongodb:
+    image: mongo:8.0
+    container_name: lab05-mongodb
+    restart: unless-stopped
+    ports:
+      - "127.0.0.1:27017:27017"
+    volumes:
+      - mongodb_data:/data/db
+
+volumes:
+  mongodb_data:

@@ -1,0 +1,3758 @@
+using LabDashboard.Catalog;
+using LabDashboard.Execution;
+
+namespace LabDashboard.Tests;
+
+public class OutputAnalyzerTests
+{
+    /// <summary>
+    /// Evaluates the checks as on a real run: the outputs recorded here come from the labs before the scenario selection, which now
+    /// prints a line when each scenario starts (<see cref="WithMarkers"/>); the checks of a scenario only see its output.
+    /// </summary>
+    private static IReadOnlyList<ExpectationResult> Evaluate(IEnumerable<LabExpectation> expectations, IReadOnlyList<string> output) =>
+        OutputAnalyzer.EvaluateExpectations(expectations, WithMarkers(output));
+
+    /// <summary>
+    /// A recorded output with the line the scenario selection prints when a scenario starts: first statement of the block, before its
+    /// divider (the divider nearest to the "=== Scenario N" header), or right before the header when there is no divider.
+    /// </summary>
+    internal static string[] WithMarkers(IReadOnlyList<string> output)
+    {
+        if (output.Any(line => line.StartsWith(CommonUtilities.LabScenarios.MarkerPrefix, StringComparison.Ordinal)))
+        {
+            return [.. output];
+        }
+
+        List<string> lines = [.. output];
+        for (int i = lines.Count - 1; i >= 0; i--)
+        {
+            System.Text.RegularExpressions.Match header = System.Text.RegularExpressions.Regex.Match(lines[i], @"^=== Scenario (\d+):");
+            if (!header.Success)
+            {
+                continue;
+            }
+
+            int start = i;
+            for (int j = i - 1; j >= 0 && !System.Text.RegularExpressions.Regex.IsMatch(lines[j], @"^=== Scenario \d+:"); j--)
+            {
+                if (System.Text.RegularExpressions.Regex.IsMatch(lines[j], "^-{10,}$"))
+                {
+                    start = j > 0 && lines[j - 1].Length == 0 ? j - 1 : j;
+                    break;
+                }
+            }
+
+            lines.Insert(start, $"{CommonUtilities.LabScenarios.MarkerPrefix}{header.Groups[1].Value}: recorded");
+        }
+
+        return [.. lines];
+    }
+    private static readonly string[] Lab01Output =
+    [
+        "Endpoint: https://example.openai.azure.com/",
+        "=== Scenario 4: Get consumed tokens from the agent response ===",
+        "- White",
+        "Token Usage: ",
+        "  Input tokens: 56",
+        "  Output tokens: 29",
+        "  Reasoning tokens (included in output): 0",
+        "  Total tokens: 85",
+        "=== Scenario 5: Streaming ===",
+        "Once upon a time...",
+        "Token Usage (streaming): ",
+        "  Input tokens: 38",
+        "  Output tokens: 120",
+        "  Total tokens: 158",
+    ];
+
+    [Fact]
+    public void Parses_every_token_usage_block_printed_by_the_exercise()
+    {
+        TokenUsageSummary usage = Assert.IsType<TokenUsageSummary>(OutputAnalyzer.ParseTokenUsage(Lab01Output));
+
+        Assert.Equal(
+            [new TokenUsageReport("Scenario 4 · Token Usage", 56, 29, 0, 85), new TokenUsageReport("Scenario 5 · Token Usage (streaming)", 38, 120, null, 158)],
+            usage.Reports);
+        Assert.Equal((94L, 149L, 0L, 243L), (usage.Input!.Value, usage.Output!.Value, usage.Reasoning!.Value, usage.Total!.Value));
+    }
+
+    // Standard output of the Lab01 solution (real run, with the lines of the scenario selection), as decoded by the dashboard (spinner lines removed).
+    private static readonly string[] Lab01SolutionOutput =
+    [
+        "Endpoint: https://example.openai.azure.com/",
+        "Deployment: gpt-4o-mini",
+        ">>> Scenarios to run: 1, 2, 3, 4, 5, 6 (the implemented ones)",
+        ">>> Running scenario 1: Basic Agent - Simple prompt with default settings",
+        "",
+        "-------------------------------------------------------------------------------",
+        "",
+        "",
+        "",
+        "=== Scenario 1: Basic Agent ===",
+        "The capital of France is Paris.",
+        ">>> Running scenario 2: Agent with Instructions - Custom behavior and identity",
+        "",
+        "-------------------------------------------------------------------------------",
+        "",
+        "",
+        "",
+        "=== Scenario 2: Agent with Instructions (GeographyAgent) ===",
+        "The surface area of France is approximately 551,695 square kilometers (213,011 square miles). This figure includes metropolitan France (mainland France in Europe) but does not account for overseas territories. When including these territories, the total area is larger.",
+        ">>> Running scenario 3: Using ChatMessages - Fine-grained control with message roles",
+        "",
+        "-------------------------------------------------------------------------------",
+        "",
+        "",
+        "",
+        "=== Scenario 3: Using ChatMessages ===",
+        "- Belgium",
+        "- Luxembourg",
+        "- Germany",
+        "- Switzerland",
+        "- Italy",
+        "- Spain",
+        "- Monaco",
+        "- Andorra",
+        "- Brazil (via overseas territory, Guiana)",
+        "- Suriname (via overseas territory, Guiana)",
+        ">>> Running scenario 4: Get consumed tokens from the agent response",
+        "",
+        "-------------------------------------------------------------------------------",
+        "",
+        "",
+        "",
+        "=== Scenario 4: Get consumed tokens from the agent response ===",
+        "- White",
+        "- Gray",
+        "- Yellow",
+        "- Orange",
+        "- Green",
+        "- Pink",
+        "- Purple",
+        "- Red",
+        "- Beige",
+        "- Gold",
+        "",
+        "-------------------------------------------------------------------------------",
+        "",
+        "Token Usage:",
+        "  Input tokens: 56",
+        "  Output tokens: 29",
+        "  Reasoning tokens (included in output): 0",
+        "  Total tokens: 85",
+        ">>> Running scenario 5: Streaming - Display the response while it is generated",
+        "",
+        "-------------------------------------------------------------------------------",
+        "",
+        "=== Scenario 5: Streaming ===",
+        "As the early morning sun bathed the Seine River in golden light, Clara stood on the Pont Alexandre III, captivated by the shimmering reflections. She wandered through the cobblestone streets of Montmartre, where enchanting street musicians filled the air with melodies as artists painted their dreams on canvases. With a warm croissant in hand, she climbed to the Sacré-Cœur, pausing to catch a breath and admire the breathtaking view of the city sprawled below. As the Eiffel Tower sparkled to life at dusk, Clara whispered a promise to return, her heart forever entwined with the magic of Paris.",
+        "",
+        "-------------------------------------------------------------------------------",
+        "",
+        "Token Usage (streaming):",
+        "  Input tokens: 38",
+        "  Output tokens: 123",
+        "  Total tokens: 161",
+        ">>> Running scenario 6: Responses API - The same agent on the API that Microsoft recommends",
+        "",
+        "-------------------------------------------------------------------------------",
+        "",
+        "",
+        "",
+        "=== Scenario 6: Responses API ===",
+        "Italy has a total surface area of approximately 301,340 square kilometers (116,347 square miles). This includes its mainland and the islands of Sicily and Sardinia. If you have any more questions about Italy or geography in general, feel free to ask!",
+        "",
+        "-------------------------------------------------------------------------------",
+        "",
+        "Response id (stored by the service): resp_01175645f19f9df4006ae27b961d1481949a862274d21e65a8",
+        "Token Usage (Responses API):",
+        "  Input tokens: 41",
+        "  Output tokens: 53",
+        "  Total tokens: 94",
+        "",
+        "-------------------------------------------------------------------------------",
+        "",
+        "=== Follow-up question, chained to resp_01175645f19f9df4006ae27b961d1481949a862274d21e65a8 ===",
+        "As of 2023, Italy's population is estimated to be around 58 million people. For the most accurate and up-to-date statistics, it's best to consult official sources like national statistics agencies or demographic databases. If you have any other questions, just let me know!",
+        "",
+        "-------------------------------------------------------------------------------",
+        "",
+        "Follow-up response id: resp_01175645f19f9df4006ae27b9c3d1481949a862274d21e65b1",
+        "Token Usage (follow-up, history kept by the service):",
+        "  Input tokens: 95",
+        "  Output tokens: 56",
+        "  Total tokens: 151",
+    ];
+
+    // Standard output of the Lab01 exercise as delivered, every scenario run (recorded when `--scenarios all` could still force them): only
+    // what the Start already prints. Such a run no longer happens, but a scenario counts as implemented as soon as one character of its code
+    // changes: its checks must still fail on this output.
+    private static readonly string[] Lab01StartOutput =
+    [
+        "Endpoint: https://example.openai.azure.com/",
+        "Deployment: gpt-4o-mini",
+        ">>> Scenarios to run: 1, 2, 3, 4, 5, 6 (--scenarios all)",
+        ">>> Scenarios not implemented yet (code unchanged since the exercise was delivered), run anyway: 1, 2, 3, 4, 5, 6",
+        ">>> Running scenario 1: Basic Agent - Simple prompt with default settings",
+        "",
+        "-------------------------------------------------------------------------------",
+        "",
+        "=== Scenario 1: Basic Agent ===",
+        ">>> Running scenario 2: Agent with Instructions - Custom behavior and identity",
+        "",
+        "-------------------------------------------------------------------------------",
+        "",
+        "=== Scenario 2: Agent with Instructions ===",
+        ">>> Running scenario 3: Using ChatMessages - Fine-grained control with message roles",
+        "",
+        "-------------------------------------------------------------------------------",
+        "",
+        "=== Scenario 3: Using ChatMessages ===",
+        ">>> Running scenario 4: Get consumed tokens from the agent response",
+        "",
+        "-------------------------------------------------------------------------------",
+        "",
+        "=== Scenario 4: Get consumed tokens from the agent response ===",
+        ">>> Running scenario 5: Streaming - Display the response while it is generated",
+        "",
+        "-------------------------------------------------------------------------------",
+        "",
+        "=== Scenario 5: Streaming ===",
+        "",
+        ">>> Running scenario 6: Responses API - The same agent on the API that Microsoft recommends",
+        "",
+        "-------------------------------------------------------------------------------",
+        "",
+        "=== Scenario 6: Responses API ===",
+    ];
+
+    [Fact]
+    public void Every_lab01_check_passes_on_the_solution_output_and_only_config_on_the_delivered_exercise()
+    {
+        LabDefinition lab01 = LabCatalogTests.LoadRealCatalog().Find("azureopenai-lab01")!;
+
+        Assert.All(Evaluate(lab01.Expectations, Lab01SolutionOutput), r => Assert.True(r.Passed, r.Id));
+        Assert.Equal(["config"], Evaluate(lab01.Expectations, Lab01StartOutput).Where(r => r.Passed).Select(r => r.Id));
+    }
+
+    [Fact]
+    public void Lab01_checks_fail_when_the_agent_answers_something_else()
+    {
+        LabDefinition lab01 = LabCatalogTests.LoadRealCatalog().Find("azureopenai-lab01")!;
+        // Every scenario printed something, but not the answer to its question (an error message, another question, the prompt).
+        string[] output =
+        [
+            ">>> Running scenario 1: Basic Agent", "I cannot answer that.",
+            ">>> Running scenario 2: Agent with Instructions", "What would you like to know about France?",
+            ">>> Running scenario 3: Using ChatMessages", "France is a country in Europe.",
+            ">>> Running scenario 5: Streaming", "Tell me a four-sentence story.",
+            ">>> Running scenario 6: Responses API", "Hello, what is the surface area of Italy?",
+        ];
+
+        Assert.Empty(Evaluate(lab01.Expectations, output).Where(r => r.Passed));
+    }
+
+    // Standard output of the Lab02 solution, as decoded by the dashboard (spinner lines removed).
+    private static readonly string[] Lab02SolutionOutput =
+    [
+        "Endpoint: https://example.openai.azure.com/",
+        "Deployment: gpt-4o-mini",
+        "",
+        "-------------------------------------------------------------------------------",
+        "",
+        "=== Scenario 1: Manually defined structured output ===",
+        "Successfully parsed structured response:",
+        "Name: Le Bernardin",
+        "Chef: Éric Ripert",
+        "",
+        "-------------------------------------------------------------------------------",
+        "",
+        "Token Usage:",
+        "  Input tokens: 166",
+        "  Output tokens: 72",
+        "  Total tokens: 238",
+        "",
+        "-------------------------------------------------------------------------------",
+        "",
+        "=== Scenario 2: Automatically generated structured output with RunAsync<T> ===",
+        "Structured response:",
+        "Name: Le Bernardin",
+        "",
+        "-------------------------------------------------------------------------------",
+        "",
+        "Token Usage:",
+        "  Input tokens: 237",
+        "  Output tokens: 125",
+        "  Total tokens: 362",
+        "",
+        "-------------------------------------------------------------------------------",
+        "",
+        "=== Scenario 3: Structured output configured on the agent ===",
+        "JSON response:",
+        """{"name":"Le Bernardin","chefName":"Éric Ripert","cuisine":"French","michelinStars":3}""",
+        "Deserialized response:",
+        "Name: Le Bernardin",
+        "",
+        "-------------------------------------------------------------------------------",
+        "",
+        "Token Usage:",
+        "  Input tokens: 239",
+        "  Output tokens: 101",
+        "  Total tokens: 340",
+        "",
+        "-------------------------------------------------------------------------------",
+        "",
+        "=== Scenario 4: Structured output with AgentRunOptions and streaming ===",
+        """{"name":"Le Bernardin","chefName":"Éric Ripert","cuisine":"French","michelinStars":3}""",
+        "Deserialized response:",
+        "Name: Le Bernardin",
+        "",
+        "-------------------------------------------------------------------------------",
+        "",
+        "Token Usage:",
+        "  Input tokens: 239",
+        "  Output tokens: 95",
+        "  Total tokens: 334",
+    ];
+
+    // Standard output of the Lab02 exercise as delivered (TODOs not done yet).
+    private static readonly string[] Lab02StartOutput =
+    [
+        "Endpoint: https://example.openai.azure.com/",
+        "=== Scenario 1: Manually defined structured output ===",
+        "",
+        "-------------------------------------------------------------------------------",
+        "=== Scenario 2: Automatically generated structured output with RunAsync<T> ===",
+        "",
+        "-------------------------------------------------------------------------------",
+        "=== Scenario 3: Structured output configured on the agent ===",
+        "",
+        "-------------------------------------------------------------------------------",
+        "=== Scenario 4: Structured output with AgentRunOptions and streaming ===",
+    ];
+
+    [Fact]
+    public void Labels_identical_token_usage_headings_with_their_scenario()
+    {
+        TokenUsageSummary usage = Assert.IsType<TokenUsageSummary>(OutputAnalyzer.ParseTokenUsage(Lab02SolutionOutput));
+
+        Assert.Equal(
+            ["Scenario 1 · Token Usage", "Scenario 2 · Token Usage", "Scenario 3 · Token Usage", "Scenario 4 · Token Usage"],
+            usage.Reports.Select(r => r.Label));
+        Assert.Equal((881L, 393L, 1274L), (usage.Input!.Value, usage.Output!.Value, usage.Total!.Value));
+    }
+
+    [Fact]
+    public void Every_lab02_check_passes_on_the_solution_output_and_only_config_on_the_delivered_exercise()
+    {
+        LabDefinition lab02 = LabCatalogTests.LoadRealCatalog().Find("azureopenai-lab02")!;
+
+        Assert.All(Evaluate(lab02.Expectations, Lab02SolutionOutput), r => Assert.True(r.Passed, r.Id));
+        Assert.Equal(
+            ["config"],
+            Evaluate(lab02.Expectations, Lab02StartOutput).Where(r => r.Passed).Select(r => r.Id));
+    }
+
+    [Fact]
+    public void A_lab02_scenario_without_usage_does_not_borrow_the_usage_of_the_next_one()
+    {
+        LabDefinition lab02 = LabCatalogTests.LoadRealCatalog().Find("azureopenai-lab02")!;
+        string[] output = [.. Lab02SolutionOutput.Where((_, index) => index is < 12 or > 15)]; // scenario 1 usage removed
+
+        ExpectationResult scenario1Usage = Evaluate(lab02.Expectations, output).Single(r => r.Id == "scenario1-usage");
+        Assert.False(scenario1Usage.Passed);
+    }
+
+    // Standard output of the Lab03 solution, as decoded by the dashboard (spinner lines removed).
+    private static readonly string[] Lab03SolutionOutput =
+    [
+        "Endpoint: https://example.openai.azure.com/",
+        "Deployment: gpt-4o-mini",
+        "",
+        "-------------------------------------------------------------------------------",
+        "",
+        "=== Scenario 1: Function tools calling - basic ===",
+        "Tools available to the agent:",
+        "- get_employee_info: Retrieves detailed information about an employee using their employee ID (e.g., EMP001, EMP002).",
+        "- get_meeting_rooms: Lists all available meeting rooms with their capacity and features.",
+        "- book_meeting_room: Books a meeting room for a specific date, time, and subject.",
+        "",
+        "Here is the information for the employee with ID EMP001:",
+        "- **Name:** Mohammed BEN SAID",
+        "",
+        "-------------------------------------------------------------------------------",
+        "",
+        "Token Usage:",
+        "  Input tokens: 507",
+        "  Output tokens: 75",
+        "  Total tokens: 582",
+        "",
+        "-------------------------------------------------------------------------------",
+        "",
+        "=== Scenario 2: Function tools calling - a plugin that declares its tools ===",
+        "Tools declared by the plugin: get_meeting_rooms, book_meeting_room",
+        "[Tool] get_meeting_rooms returned: Available Meeting Rooms:",
+        "[Tool] book_meeting_room returned: Cannot book: 2025-12-16 is in the past (today is 2026-10-25).",
+        "[Tool] book_meeting_room returned: Booking confirmed!",
+        "1. **Innovation Lab (ROOM-A)**",
+        "- The booking for **ROOM-A** on **2025-12-16** could not be confirmed as the date is in the past.",
+        "- The booking for **ROOM-B** on **2026-10-26** has been successfully confirmed for the employee with ID **EMP002**.",
+        "",
+        "-------------------------------------------------------------------------------",
+        "",
+        "Token Usage:",
+        "  Input tokens: 1186",
+        "  Output tokens: 159",
+        "  Total tokens: 1345",
+        "",
+        "-------------------------------------------------------------------------------",
+        "",
+        "=== Scenario 3: Function tools calling - static tools with DI ===",
+        "",
+        "The notification has been sent to Mohammed with the message: **\"Meeting at 3pm tomorrow\"**.",
+        "- **[97576bb9] 14:17:57:** Meeting at 3pm tomorrow",
+        "",
+        "-------------------------------------------------------------------------------",
+        "",
+        "Token Usage:",
+        "  Input tokens: 396",
+        "  Output tokens: 109",
+        "  Total tokens: 505",
+        "",
+        "-------------------------------------------------------------------------------",
+        "",
+        "=== Scenario 4: Function calling middleware ===",
+        "[Middleware] Calling get_employee_info(employeeId: EMP003)",
+        "[Middleware] get_employee_info returned: Employee Found:",
+        "[Middleware] Calling book_meeting_room(roomId: ROOM-B, employeeId: EMP003, date: 2026-10-27, startTime: 14:00, endTime: 15:00, subject: Design Review)",
+        "[Middleware] book_meeting_room returned: Booking confirmed!",
+        "- **Name:** Charlie Brown",
+        "",
+        "-------------------------------------------------------------------------------",
+        "",
+        "Token Usage:",
+        "  Input tokens: 1276",
+        "  Output tokens: 219",
+        "  Total tokens: 1495",
+    ];
+
+    // Standard output of the Lab03 exercise as delivered (TODOs not done yet).
+    private static readonly string[] Lab03StartOutput =
+    [
+        "Endpoint: https://example.openai.azure.com/",
+        "Deployment: gpt-4o-mini",
+        "",
+        "-------------------------------------------------------------------------------",
+        "",
+        "=== Scenario 1: Function tools calling - basic ===",
+        "",
+        "-------------------------------------------------------------------------------",
+        "",
+        "=== Scenario 2: Function tools calling - a plugin that declares its tools ===",
+        "Tools declared by the plugin: ",
+        "",
+        "-------------------------------------------------------------------------------",
+        "",
+        "=== Scenario 3: Function tools calling - static tools with DI ===",
+        "",
+        "-------------------------------------------------------------------------------",
+        "",
+        "=== Scenario 4: Function calling middleware ===",
+    ];
+
+    [Fact]
+    public void Every_lab03_check_passes_on_the_solution_output_and_only_config_on_the_delivered_exercise()
+    {
+        LabDefinition lab03 = LabCatalogTests.LoadRealCatalog().Find("azureopenai-lab03")!;
+
+        Assert.All(Evaluate(lab03.Expectations, Lab03SolutionOutput), r => Assert.True(r.Passed, r.Id));
+        Assert.Equal(
+            ["config"],
+            Evaluate(lab03.Expectations, Lab03StartOutput).Where(r => r.Passed).Select(r => r.Id));
+    }
+
+    [Fact]
+    public void A_lab03_answer_without_tool_data_fails_its_checks()
+    {
+        LabDefinition lab03 = LabCatalogTests.LoadRealCatalog().Find("azureopenai-lab03")!;
+        // The agent answered without calling the tools: no employee data, no tool result, no notification id, no middleware trace.
+        string[] output =
+        [
+            "=== Scenario 1: Function tools calling - basic ===",
+            "Tools available to the agent:",
+            "- get_employee_info: ",
+            "I don't have access to employee records.",
+            "=== Scenario 2: Function tools calling - a plugin that declares its tools ===",
+            "Tools declared by the plugin: get_meeting_rooms, book_meeting_room, cancel_all_bookings",
+            "The room ROOM-A has been booked for 2025-12-16.",
+            "=== Scenario 3: Function tools calling - static tools with DI ===",
+            "It appears that there was an error while trying to send the notification 'Meeting at 3pm tomorrow'.",
+            "=== Scenario 4: Function calling middleware ===",
+            "Innovation Lab has been booked.",
+        ];
+
+        Assert.Empty(Evaluate(lab03.Expectations, output).Where(r => r.Passed && !r.Id.EndsWith("-usage", StringComparison.Ordinal)));
+    }
+
+    [Fact]
+    public void Labels_the_four_lab03_token_usage_blocks_with_their_scenario()
+    {
+        TokenUsageSummary usage = Assert.IsType<TokenUsageSummary>(OutputAnalyzer.ParseTokenUsage(Lab03SolutionOutput));
+
+        Assert.Equal(
+            ["Scenario 1 · Token Usage", "Scenario 2 · Token Usage", "Scenario 3 · Token Usage", "Scenario 4 · Token Usage"],
+            usage.Reports.Select(r => r.Label));
+        Assert.Equal(3927L, usage.Total!.Value); // 582 + 1345 + 505 + 1495
+    }
+
+    // Standard output of the Lab04 solution (real run), as decoded by the dashboard (spinner lines removed).
+    private static readonly string[] Lab04SolutionOutput =
+    [
+        "Endpoint: https://example.openai.azure.com/",
+        "Deployment: gpt-4o-mini",
+        "MCP Server: https://huggingface.co/mcp (anonymous)",
+        "",
+        "-------------------------------------------------------------------------------",
+        "",
+        "=== Scenario 1: Discover the tools of the MCP server ===",
+        "Connected to: huggingface.co/mcp 0.4.23",
+        "MCP tools available (4): hf_whoami, hub_repo_search, hub_repo_details, hf_fs",
+        "",
+        "-------------------------------------------------------------------------------",
+        "",
+        "=== Scenario 2: Agent with MCP tools and structured output ===",
+        "Found 4 models:",
+        "  Name: jinaai/jina-embeddings-v5-text-nano-classification",
+        "  Task: text-classification",
+        "  Library: llama.cpp",
+        "  Link: https://hf.co/jinaai/jina-embeddings-v5-text-nano-classification",
+        "",
+        "  Name: jinaai/jina-embeddings-v5-text-nano",
+        "  Task: feature-extraction",
+        "  Library: transformers",
+        "  Link: https://hf.co/jinaai/jina-embeddings-v5-text-nano",
+        "",
+        "MCP tools called by the agent:",
+        "- hub_repo_search(query: text embedding, repo_types: [\"model\"], limit: 4)",
+        "",
+        "-------------------------------------------------------------------------------",
+        "",
+        "Token Usage:",
+        "  Input tokens: 4435",
+        "  Output tokens: 240",
+        "  Total tokens: 4675",
+        "",
+        "-------------------------------------------------------------------------------",
+        "",
+        "=== Scenario 3: Give the agent only the MCP tools it needs ===",
+        "Tools given to the agent: hub_repo_search",
+        "Found 4 models: jinaai/jina-embeddings-v5-text-nano-classification, trapoom555/MiniCPM-2B-Text-Embedding-cft, jinaai/jina-embeddings-v5-text-nano, jinaai/jina-embeddings-v5-text-small",
+        "",
+        "-------------------------------------------------------------------------------",
+        "",
+        "Token Usage:",
+        "  Input tokens: 1927",
+        "  Output tokens: 240",
+        "  Total tokens: 2167",
+        "",
+        "-------------------------------------------------------------------------------",
+        "",
+        "=== Scenario 4: Responses API - the same MCP client, the tools still run in your application ===",
+        "Tools given to the agent: hub_repo_search (MCP client of this application)",
+        "Found 4 models: jinaai/jina-embeddings-v5-text-nano, jinaai/jina-embeddings-v5-text-small, univec/convert-snowflake_arctic_embed_l_v2.0-to-openai_text_embedding_ada_002, litert-community/embeddinggemma-2-text-270m-litert-lm",
+        "Tool calls of the run:",
+        "- hub_repo_search(query: text embedding, repo_types: [\"model\"], limit: 4) - run by this application, through its MCP client",
+        "Response id: resp_0aaf1082934d4541006aef384ac92081949ed6d0dde0a98853",
+        "",
+        "-------------------------------------------------------------------------------",
+        "",
+        "Token Usage:",
+        "  Input tokens: 1847",
+        "  Output tokens: 262",
+        "  Total tokens: 2109",
+        "",
+        "-------------------------------------------------------------------------------",
+        "",
+        "=== Scenario 5: Hosted MCP - the service connects to the MCP server and runs its tools ===",
+        "Hosted MCP server given to the agent: huggingface (https://huggingface.co/mcp), allowed tools: hub_repo_search",
+        "Found 4 models: jinaai/jina-embeddings-v5-text-nano, jinaai/jina-embeddings-v5-text-small, univec/convert-snowflake_arctic_embed_l_v2.0-to-openai_text_embedding_ada_002, litert-community/embeddinggemma-2-text-270m-litert-lm",
+        "Tool calls of the run:",
+        "- MCP tools listed by the service (huggingface): hub_repo_search",
+        "- huggingface/hub_repo_search(query: text embedding, repo_types: [\"model\"], author: , filters: [], sort: trendingScore, limit: 4) - run by the service (hosted MCP)",
+        "",
+        "-------------------------------------------------------------------------------",
+        "",
+        "Token Usage:",
+        "  Input tokens: 1344",
+        "  Output tokens: 271",
+        "  Total tokens: 1615",
+    ];
+
+    // Standard output of the Lab04 exercise as delivered (TODOs not done yet).
+    private static readonly string[] Lab04StartOutput =
+    [
+        "Endpoint: https://example.openai.azure.com/",
+        "Deployment: gpt-4o-mini",
+        "MCP Server: https://huggingface.co/mcp (anonymous)",
+        "",
+        "-------------------------------------------------------------------------------",
+        "",
+        "=== Scenario 1: Discover the tools of the MCP server ===",
+        "",
+        "-------------------------------------------------------------------------------",
+        "",
+        "=== Scenario 2: Agent with MCP tools and structured output ===",
+        "",
+        "-------------------------------------------------------------------------------",
+        "",
+        "=== Scenario 3: Give the agent only the MCP tools it needs ===",
+        "",
+        "-------------------------------------------------------------------------------",
+        "",
+        "=== Scenario 4: Responses API - the same MCP client, the tools still run in your application ===",
+        "",
+        "-------------------------------------------------------------------------------",
+        "",
+        "=== Scenario 5: Hosted MCP - the service connects to the MCP server and runs its tools ===",
+    ];
+
+    [Fact]
+    public void Every_lab04_check_passes_on_the_solution_output_and_only_config_on_the_delivered_exercise()
+    {
+        LabDefinition lab04 = LabCatalogTests.LoadRealCatalog().Find("azureopenai-lab04")!;
+
+        Assert.All(Evaluate(lab04.Expectations, Lab04SolutionOutput), r => Assert.True(r.Passed, r.Id));
+        Assert.Equal(
+            ["config"],
+            Evaluate(lab04.Expectations, Lab04StartOutput).Where(r => r.Passed).Select(r => r.Id));
+    }
+
+    [Fact]
+    public void A_lab04_answer_without_mcp_tools_fails_its_checks()
+    {
+        LabDefinition lab04 = LabCatalogTests.LoadRealCatalog().Find("azureopenai-lab04")!;
+        // The agent answered from its own knowledge: no server information, no tool called, no Hub link, every tool kept.
+        string[] output =
+        [
+            "=== Scenario 1: Discover the tools of the MCP server ===",
+            "MCP tools available (0): ",
+            "=== Scenario 2: Agent with MCP tools and structured output ===",
+            "Found 1 models:",
+            "  Name: all-MiniLM-L6-v2",
+            "  Task: sentence-similarity",
+            "  Library: sentence-transformers",
+            "  Link: https://www.sbert.net",
+            "MCP tools called by the agent:",
+            "=== Scenario 3: Give the agent only the MCP tools it needs ===",
+            "Tools given to the agent: hf_whoami, hub_repo_search, hub_repo_details, hf_fs",
+            "Found 0 models: ",
+        ];
+
+        Assert.Empty(Evaluate(lab04.Expectations, output).Where(r => r.Passed && !r.Id.EndsWith("-usage", StringComparison.Ordinal)));
+    }
+
+    [Fact]
+    public void Labels_the_four_lab04_token_usage_blocks_with_their_scenario()
+    {
+        TokenUsageSummary usage = Assert.IsType<TokenUsageSummary>(OutputAnalyzer.ParseTokenUsage(Lab04SolutionOutput));
+
+        Assert.Equal(["Scenario 2 · Token Usage", "Scenario 3 · Token Usage", "Scenario 4 · Token Usage", "Scenario 5 · Token Usage"], usage.Reports.Select(r => r.Label));
+        Assert.Equal(10566L, usage.Total!.Value); // 4675 + 2167 + 2109 + 1615
+    }
+
+    // Standard output of the Lab05 solution (real run), as decoded by the dashboard (spinner lines removed).
+    private static readonly string[] Lab05SolutionOutput =
+    [
+        "Endpoint: https://example.openai.azure.com/",
+        "Deployment: gpt-4o-mini",
+        "",
+        "-------------------------------------------------------------------------------",
+        "",
+        "=== Scenario 1: Session with the default in-memory chat history ===",
+        "User: Hello, my name is Ada. What is the capital of France?",
+        "",
+        "",
+        "Agent: The capital of France is Paris.",
+        "Messages in the session: 2 (user, assistant)",
+        "Serialized session:",
+        "{",
+        "  \"stateBag\": {",
+        "    \"InMemoryChatHistoryProvider\": {",
+        "      \"messages\": [",
+        "        {",
+        "          \"role\": \"user\",",
+        "          \"contents\": [",
+        "            {",
+        "              \"$type\": \"text\",",
+        "              \"text\": \"Hello, my name is Ada. What is the capital of France?\"",
+        "            }",
+        "          ]",
+        "        },",
+        "        {",
+        "          \"authorName\": \"GlobalAgent\",",
+        "          \"createdAt\": \"2026-09-27T14:26:39\\u002B00:00\",",
+        "          \"role\": \"assistant\",",
+        "          \"contents\": [",
+        "            {",
+        "              \"$type\": \"text\",",
+        "              \"text\": \"The capital of France is Paris.\"",
+        "            }",
+        "          ],",
+        "          \"messageId\": \"chatcmpl-ESk7rNKQoFQEyrH0BazHrRuKKsNVZ\"",
+        "        }",
+        "      ]",
+        "    }",
+        "  }",
+        "}",
+        "",
+        "-------------------------------------------------------------------------------",
+        "",
+        "Restoring the session from the saved JSON...",
+        "User: What is the population of that city? And what is my name?",
+        "",
+        "",
+        "Agent: As of 2023, the population of Paris is approximately 2.1 million. Your name is Ada.",
+        "",
+        "-------------------------------------------------------------------------------",
+        "",
+        "Token Usage (follow-up):",
+        "  Input tokens: 79",
+        "  Output tokens: 23",
+        "  Total tokens: 102",
+        "",
+        "-------------------------------------------------------------------------------",
+        "",
+        "=== Scenario 2: Bound the chat history with a chat reducer ===",
+        "",
+        "",
+        "User: Hello, my name is Ada. What is the capital of France?",
+        "Agent: The capital of France is Paris.",
+        "Messages kept in the session: 2 (input tokens of this run: 47)",
+        "",
+        "",
+        "User: And what is the capital of Italy?",
+        "Agent: The capital of Italy is Rome.",
+        "Messages kept in the session: 4 (input tokens of this run: 73)",
+        "",
+        "",
+        "User: What is the population of that city? And what is my name?",
+        "Agent: As of 2023, Rome's population is approximately 2.8 million. I don't know your name.",
+        "Messages kept in the session: 4 (input tokens of this run: 73)",
+        "",
+        "-------------------------------------------------------------------------------",
+        "",
+        "Token Usage (follow-up):",
+        "  Input tokens: 73",
+        "  Output tokens: 23",
+        "  Total tokens: 96",
+        "",
+        "-------------------------------------------------------------------------------",
+        "",
+        "=== Scenario 3: Custom ChatHistoryProvider - chat history outside of the application ===",
+        "User: Hello, my name is Ada. What is the capital of France?",
+        "",
+        "",
+        "Agent: The capital of France is Paris.",
+        "Serialized session:",
+        "{",
+        "  \"stateBag\": {",
+        "    \"PersistentChatHistoryProvider\": {",
+        "      \"sessionDbKey\": \"8ec5b27595174bebb3b3b5cdb2a7e04e\"",
+        "    }",
+        "  }",
+        "}",
+        "",
+        "-------------------------------------------------------------------------------",
+        "",
+        "Simulating a restart: new agent, new connection to the storage, session restored from the saved JSON...",
+        "Restored session - chat history stored under the key: 8ec5b27595174bebb3b3b5cdb2a7e04e",
+        "User: What is the population of that city? And what is my name?",
+        "",
+        "",
+        "Agent: The population of Paris is approximately 2.1 million. Your name is Ada.",
+        "",
+        "-------------------------------------------------------------------------------",
+        "",
+        "Token Usage (follow-up):",
+        "  Input tokens: 79",
+        "  Output tokens: 17",
+        "  Total tokens: 96",
+        "",
+        "",
+        "-------------------------------------------------------------------------------",
+        "",
+        "=== Scenario 4: Responses API - the service keeps the conversation ===",
+        "User: Hello, my name is Ada. What is the capital of France?",
+        "Agent: The capital of France is Paris.",
+        "Conversation id kept in the session: resp_0914aa511c3b54b1006aef385a84f48194a9ab58ebff1c5a31",
+        "Serialized session:",
+        "{",
+        "  \"conversationId\": \"resp_0914aa511c3b54b1006aef385a84f48194a9ab58ebff1c5a31\",",
+        "  \"stateBag\": {",
+        "    \"InMemoryChatHistoryProvider\": {",
+        "      \"messages\": []",
+        "    }",
+        "  }",
+        "}",
+        "",
+        "-------------------------------------------------------------------------------",
+        "",
+        "Restoring the session from the saved JSON...",
+        "User: What is the population of that city? And what is my name?",
+        "Agent: The population of Paris is approximately 2.1 million. Your name is Ada.",
+        "Conversation id kept in the session after the follow-up: resp_0914aa511c3b54b1006aef385bc0ac81949e0ceb9b30d4c71a",
+        "Response resp_0914aa511c3b54b1006aef385bc0ac81949e0ceb9b30d4c71a stored by the service: yes",
+        "",
+        "-------------------------------------------------------------------------------",
+        "",
+        "Token Usage (follow-up):",
+        "  Input tokens: 76",
+        "  Output tokens: 18",
+        "  Total tokens: 94",
+        "Deleted the 2 responses stored by the service for this conversation",
+        "",
+        "-------------------------------------------------------------------------------",
+        "",
+        "=== Scenario 5: Responses API without storage - the conversation stays in your application ===",
+        "Chat history storage: JSON file /home/user/.local/share/MicrosoftAgentFrameworkLabs/AIAgentSessions/chat_history.json (Storage:Mode = JsonFile)",
+        "User: Hello, my name is Ada. What is the capital of France?",
+        "Agent: The capital of France is Paris.",
+        "Response resp_03449687619d22cf016aef385db7fc81938ac78fc2376e38e9 stored by the service: no (404)",
+        "Serialized session:",
+        "{",
+        "  \"stateBag\": {",
+        "    \"PersistentChatHistoryProvider\": {",
+        "      \"sessionDbKey\": \"9858aadb414e4bb5aa196db677946fce\"",
+        "    }",
+        "  }",
+        "}",
+        "",
+        "-------------------------------------------------------------------------------",
+        "",
+        "Simulating a restart: new agent, new connection to the storage, session of 'support-case-1042' restored...",
+        "Chat history storage: JSON file /home/user/.local/share/MicrosoftAgentFrameworkLabs/AIAgentSessions/chat_history.json (Storage:Mode = JsonFile)",
+        "User: What is the population of that city? And what is my name?",
+        "Agent: The population of Paris is approximately 2.1 million. Your name is Ada.",
+        "",
+        "-------------------------------------------------------------------------------",
+        "",
+        "Identifiers of this conversation:",
+        "  Business conversation id (your application): support-case-1042",
+        "  Agent Framework session: the serialized AgentSession, saved under support-case-1042 (a session has no id of its own)",
+        "  Chat history key (PersistentChatHistoryProvider, inside the session): 9858aadb414e4bb5aa196db677946fce",
+        "  Last response id (Responses API, not stored): resp_0c05d67066392eee016aef385f1828819697883abef3130b08",
+        "  Service conversation id (ChatClientAgentSession.ConversationId): (none)",
+        "",
+        "-------------------------------------------------------------------------------",
+        "",
+        "Token Usage (follow-up):",
+        "  Input tokens: 76",
+        "  Output tokens: 18",
+        "  Total tokens: 94",
+    ];
+
+    // Standard output of the Lab05 exercise as delivered (TODOs not done yet).
+    private static readonly string[] Lab05StartOutput =
+    [
+        "Endpoint: https://example.openai.azure.com/",
+        "Deployment: gpt-4o-mini",
+        "",
+        "-------------------------------------------------------------------------------",
+        "",
+        "=== Scenario 1: Session with the default in-memory chat history ===",
+        "",
+        "-------------------------------------------------------------------------------",
+        "",
+        "=== Scenario 2: Bound the chat history with a chat reducer ===",
+        "",
+        "-------------------------------------------------------------------------------",
+        "",
+        "=== Scenario 3: Custom ChatHistoryProvider - chat history outside of the application ===",
+        "",
+        "-------------------------------------------------------------------------------",
+        "",
+        "=== Scenario 4: Responses API - the service keeps the conversation ===",
+        "",
+        "-------------------------------------------------------------------------------",
+        "",
+        "=== Scenario 5: Responses API without storage - the conversation stays in your application ===",
+    ];
+
+    [Fact]
+    public void Every_lab05_check_passes_on_the_solution_output_and_only_config_on_the_delivered_exercise()
+    {
+        LabDefinition lab05 = LabCatalogTests.LoadRealCatalog().Find("azureopenai-lab05")!;
+
+        Assert.All(Evaluate(lab05.Expectations, Lab05SolutionOutput), r => Assert.True(r.Passed, r.Id));
+        Assert.Equal(
+            ["config"],
+            Evaluate(lab05.Expectations, Lab05StartOutput).Where(r => r.Passed).Select(r => r.Id));
+    }
+
+    [Fact]
+    public void A_lab05_conversation_that_lost_its_history_fails_its_checks()
+    {
+        LabDefinition lab05 = LabCatalogTests.LoadRealCatalog().Find("azureopenai-lab05")!;
+        // The follow-up questions were asked in new sessions, the history of scenario 2 was not bounded (no reducer: the name is still known),
+        // and the restarted agent of scenario 3 used another key.
+        string[] output =
+        [
+            "=== Scenario 1: Session with the default in-memory chat history ===",
+            "Agent: The capital of France is Paris.",
+            "Messages in the session: 0 ()",
+            "Serialized session:",
+            "{",
+            "  \"stateBag\": {}",
+            "}",
+            "Restoring the session from the saved JSON...",
+            "Agent: I don't know which city you mean, and I don't know your name.",
+            "=== Scenario 2: Bound the chat history with a chat reducer ===",
+            "User: Hello, my name is Ada. What is the capital of France?",
+            "Agent: The capital of France is Paris.",
+            "Messages kept in the session: 2 (input tokens of this run: 47)",
+            "User: And what is the capital of Italy?",
+            "Agent: The capital of Italy is Rome.",
+            "Messages kept in the session: 4 (input tokens of this run: 73)",
+            "User: What is the population of that city? And what is my name?",
+            "Agent: Rome has about 2.8 million inhabitants, and your name is Ada.",
+            "Messages kept in the session: 6 (input tokens of this run: 98)",
+            "=== Scenario 3: Custom ChatHistoryProvider - chat history outside of the application ===",
+            "Serialized session:",
+            "{",
+            "  \"stateBag\": {",
+            "    \"PersistentChatHistoryProvider\": {",
+            "      \"sessionDbKey\": \"f3b863cd58334e6aa5edfcc72d376ff9\"",
+            "    }",
+            "  }",
+            "}",
+            "Simulating a restart: new agent, new connection to the storage, session restored from the saved JSON...",
+            "Restored session - chat history stored under the key: 0123456789abcdef0123456789abcdef",
+            "Agent: Which city do you mean? What is your name?",
+        ];
+
+        Assert.DoesNotContain(Evaluate(lab05.Expectations, output), r => r.Passed);
+    }
+
+    [Fact]
+    public void Labels_the_five_lab05_token_usage_blocks_with_their_scenario()
+    {
+        TokenUsageSummary usage = Assert.IsType<TokenUsageSummary>(OutputAnalyzer.ParseTokenUsage(Lab05SolutionOutput));
+
+        Assert.Equal(
+            ["Scenario 1 · Token Usage (follow-up)", "Scenario 2 · Token Usage (follow-up)", "Scenario 3 · Token Usage (follow-up)",
+             "Scenario 4 · Token Usage (follow-up)", "Scenario 5 · Token Usage (follow-up)"],
+            usage.Reports.Select(r => r.Label));
+        Assert.Equal(482L, usage.Total!.Value); // 102 + 96 + 96 + 94 + 94
+    }
+
+    [Fact]
+    public void Returns_null_when_no_token_usage_is_printed()
+    {
+        Assert.Null(OutputAnalyzer.ParseTokenUsage(["=== Scenario 1: Basic Agent ===", "", "-----"]));
+    }
+
+    [Fact]
+    public void Evaluates_expectations_on_the_whole_output()
+    {
+        LabExpectation[] expectations =
+        [
+            new("s4", "Scenario 4 answered", @"^=== Scenario 4:[^\n]*===\n\S"),
+            new("s1", "Scenario 1 answered", @"^=== Scenario 1:[^\n]*===\n\S"),
+            new("usage", "Usage displayed", @"(?is)=== Scenario 5:.*?input tokens:?\s*\d+"),
+        ];
+
+        IReadOnlyList<ExpectationResult> results = OutputAnalyzer.EvaluateExpectations(expectations, Lab01Output);
+
+        Assert.Equal([true, false, true], results.Select(r => r.Passed));
+    }
+
+    [Fact]
+    public void An_unanswered_scenario_fails_its_check()
+    {
+        // The Start project as delivered prints the header followed by an empty line.
+        IReadOnlyList<ExpectationResult> results = OutputAnalyzer.EvaluateExpectations(
+            [new LabExpectation("s1", "Scenario 1 answered", @"^=== Scenario 1:[^\n]*===\n\S")],
+            ["=== Scenario 1: Basic Agent ===", "", "-----"]);
+
+        Assert.False(Assert.Single(results).Passed);
+    }
+
+    [Fact]
+    public void Extracts_distinct_build_diagnostics_without_the_project_suffix()
+    {
+        string[] build =
+        [
+            "/repo/CommonUtilities/CommonUtilities.csproj : warning NU1903: Package 'Snappier' 1.0.0 has a known high severity vulnerability [/repo/Lab/Start.csproj]",
+            "/repo/CommonUtilities/CommonUtilities.csproj : warning NU1903: Package 'Snappier' 1.0.0 has a known high severity vulnerability",
+            "/repo/Lab/Program.cs(12,5): error CS1002: ; expected [/repo/Lab/Start.csproj]",
+        ];
+
+        Assert.Equal(["NU1903: Package 'Snappier' 1.0.0 has a known high severity vulnerability"], OutputAnalyzer.BuildDiagnostics(build, "warning"));
+        Assert.Equal(["CS1002: ; expected"], OutputAnalyzer.BuildDiagnostics(build, "error"));
+    }
+
+    // Standard output of the Lab06 client solution (real run from the dashboard, companion server on port 5071).
+    private static readonly string[] Lab06ClientSolutionOutput =
+    [
+        "Endpoint: https://example.openai.azure.com/",
+        "Deployment: gpt-4o-mini",
+        "",
+        "-------------------------------------------------------------------------------",
+        "",
+        "=== Scenario 1: Discover a remote agent from its agent card ===",
+        "Agent card: AuthAgent (version 1.0.0)",
+        "  Description: An authentication agent specialized in generating and validating API keys. Only handles authentication-related tasks.",
+        "  Skill: GenerateAPIKey - Generates a new random API key that starts with 'Meknes'. The key includes a cryptographic signature for validation.",
+        "  Skill: ValidateAPIKey - Validates an API key by checking if it starts with 'Meknes' and verifying its cryptographic signature.",
+        "  Interface: JSONRPC (A2A 1.0) at http://localhost:5071/a2a/authAgent",
+        "  Interface: HTTP+JSON (A2A 1.0) at http://localhost:5071/a2a/authAgent",
+        "Generated API key: MeknesF_4sPEHMGX1nrxDzl9TZTNqb5nIbohNdRSWpAq9jqVY.TR8qmEPNvgwNU4MCIqs1IFMGveXeYGITgWXXulZlOM8",
+        "Validation of the generated key: The API key is valid.",
+        "Validation of a tampered key: The API key you provided is not valid. It either does not start with \"Meknes\" or its cryptographic signature could not be verified. Please check the key and try again.",
+        "",
+        "-------------------------------------------------------------------------------",
+        "",
+        "=== Scenario 2: Connect to a remote agent by URL (direct configuration) ===",
+        "Remote agent: CustomerToneAgent at http://localhost:5071/a2a/customerToneAgent",
+        "Customer message: I have been waiting for my order for two weeks and nobody answers my emails!",
+        "Tone: Frustrated. The customer expresses dissatisfaction with the wait time for their order and the lack of communication, indicating their growing impatience.",
+        "",
+        "-------------------------------------------------------------------------------",
+        "",
+        "=== Scenario 3: A remote agent as a function tool of a local agent ===",
+        "Tool called: AuthAgent",
+        "Tool called: AuthAgent",
+        "Assistant: Your generated API key is:",
+        "",
+        "```",
+        "MeknesvWeX7Q6ddCCBJdgP4vM5sTX2GFHQtHOrtMozrbbruvs.SHWK8IlFNiwtYFGTfkiAhs6Qk3aL4-s-lsbx-sE1uvE",
+        "```",
+        "",
+        "The result of the validation check is: **The API key is valid.**",
+        "",
+        "-------------------------------------------------------------------------------",
+        "",
+        "Token Usage:",
+        "  Input tokens: 612",
+        "  Output tokens: 181",
+        "  Total tokens: 793",
+
+        "",
+        "-------------------------------------------------------------------------------",
+        "",
+        "=== Scenario 4: A conversation with a remote agent ===",
+        "Generated API key: Meknes89JCH9LZV6dxG5fBipadJb-YT2WR5cx3zTlZhYQTyvk._hCm1ngpLmSMPRkNhyyzMR09QBO88BoH0N0dsLAkumI",
+        "Context id after turn 1: 3aec061b267945b48faaa1fac1c27a91",
+        "Same session: Here is the API key you requested, exactly as it is:",
+        "",
+        "**Meknes89JCH9LZV6dxG5fBipadJb-YT2WR5cx3zTlZhYQTyvk._hCm1ngpLmSMPRkNhyyzMR09QBO88BoH0N0dsLAkumI**",
+        "",
+        "The key is valid.",
+        "  -> Answer contains the key of turn 1: yes",
+        "Context id after turn 2: 3aec061b267945b48faaa1fac1c27a91",
+        "New conversation: The generated API key is: **Meknesl_w9qApEb0EBkvgPF9J3oLkrGlYGswIpAvCE16O0B90.MiszCP8Y7Au0_zuYRgoH13JSW6dttyeWN-6vWG4DQBM**",
+        "",
+        "It is valid.",
+        "  -> Answer contains the key of turn 1: no",
+    ];
+
+    // Standard output of the Lab06 client exercise as delivered (TODOs not done yet), with the companion server running.
+    private static readonly string[] Lab06ClientStartOutput =
+    [
+        "Endpoint: https://example.openai.azure.com/",
+        "Deployment: gpt-4o-mini",
+        "",
+        "-------------------------------------------------------------------------------",
+        "",
+        "=== Scenario 1: Discover a remote agent from its agent card ===",
+        "",
+        "-------------------------------------------------------------------------------",
+        "",
+        "=== Scenario 2: Connect to a remote agent by URL (direct configuration) ===",
+        "",
+        "-------------------------------------------------------------------------------",
+        "",
+        "=== Scenario 3: A remote agent as a function tool of a local agent ===",
+        "",
+        "-------------------------------------------------------------------------------",
+        "",
+        "=== Scenario 4: A conversation with a remote agent ===",
+    ];
+
+    // What the checks of the Lab06 server read: the output of the server solution, then of the companion client (real run).
+    private static readonly string[] Lab06ServerSolutionOutput =
+    [
+        "Endpoint: https://example.openai.azure.com/",
+        "Deployment: gpt-4o-mini",
+        "",
+        "-------------------------------------------------------------------------------",
+        "",
+        "=== Scenario 1: A2A server with two agents ===",
+        "APIKeySettings:SecretKey is not set: API keys are signed with a random secret, valid until the server stops.",
+        "Session store: in memory (development only), one per agent.",
+        "AuthAgent:         http://localhost:5071/a2a/authAgent",
+        "  Agent card:      http://localhost:5071/a2a/authAgent/.well-known/agent-card.json",
+        "CustomerToneAgent: http://localhost:5071/a2a/customerToneAgent",
+        "  Agent card:      http://localhost:5071/a2a/customerToneAgent/.well-known/agent-card.json",
+        "Press Ctrl+C to stop the server.",
+        "info: Microsoft.Hosting.Lifetime[14]",
+        "      Now listening on: http://localhost:5071",
+        "info: Microsoft.Hosting.Lifetime[0]",
+        "      Application started. Press Ctrl+C to shut down.",
+        "info: Microsoft.Hosting.Lifetime[0]",
+        "      Hosting environment: Production",
+        "info: Microsoft.Hosting.Lifetime[0]",
+        "      Content root path: /repo/LearningLabs/AzureOpenAI/Lab06_A2AServer/Solution",
+        "Endpoint: https://example.openai.azure.com/",
+        "Deployment: gpt-4o-mini",
+        "",
+        "-------------------------------------------------------------------------------",
+        "",
+        "=== Scenario 1: Discover a remote agent from its agent card ===",
+        "Agent card: AuthAgent (version 1.0.0)",
+        "  Description: An authentication agent specialized in generating and validating API keys. Only handles authentication-related tasks.",
+        "  Skill: GenerateAPIKey - Generates a new random API key that starts with 'Meknes'. The key includes a cryptographic signature for validation.",
+        "  Skill: ValidateAPIKey - Validates an API key by checking if it starts with 'Meknes' and verifying its cryptographic signature.",
+        "  Interface: JSONRPC (A2A 1.0) at http://localhost:5071/a2a/authAgent",
+        "  Interface: HTTP+JSON (A2A 1.0) at http://localhost:5071/a2a/authAgent",
+        "Generated API key: MekneshRpAhFKNbxHIdqCIU-4wvacQBaNBpOJbMlktaZ0oOkM.bjF3nhsoYdWh27lI-JBgDBs7YBcavOCfDC22Dkl_18U",
+        "Validation of the generated key: The API key is valid.",
+        "Validation of a tampered key: The API key is not valid. It does not start with \"Meknes\" as required.",
+        "",
+        "-------------------------------------------------------------------------------",
+        "",
+        "=== Scenario 2: Connect to a remote agent by URL (direct configuration) ===",
+        "Remote agent: CustomerToneAgent at http://localhost:5071/a2a/customerToneAgent",
+        "Customer message: I have been waiting for my order for two weeks and nobody answers my emails!",
+        "Tone: Frustrated. The customer expresses dissatisfaction due to the delay in receiving their order and the lack of response to their emails, indicating a feeling of irritation and urgency.",
+        "",
+        "-------------------------------------------------------------------------------",
+        "",
+        "=== Scenario 3: A remote agent as a function tool of a local agent ===",
+        "Tool called: AuthAgent",
+        "Tool called: AuthAgent",
+        "Assistant: Here is your generated API key:",
+        "",
+        "```",
+        "Mekneska0nOpeJodhBwz2_dTcVAtd0GzSQpC--3BIymJGKRG8.V5giRUpLuc0_mjYdk8m0Nm7Va6U4w6Qg_kwPlkKAKgc",
+        "```",
+        "",
+        "The API key is valid.",
+        "",
+        "-------------------------------------------------------------------------------",
+        "",
+        "Token Usage:",
+        "  Input tokens: 675",
+        "  Output tokens: 172",
+        "  Total tokens: 847",
+
+        "",
+        "-------------------------------------------------------------------------------",
+        "",
+        "=== Scenario 4: A conversation with a remote agent ===",
+        "Generated API key: Meknes89JCH9LZV6dxG5fBipadJb-YT2WR5cx3zTlZhYQTyvk._hCm1ngpLmSMPRkNhyyzMR09QBO88BoH0N0dsLAkumI",
+        "Context id after turn 1: 3aec061b267945b48faaa1fac1c27a91",
+        "Same session: Here is the API key you requested, exactly as it is:",
+        "",
+        "**Meknes89JCH9LZV6dxG5fBipadJb-YT2WR5cx3zTlZhYQTyvk._hCm1ngpLmSMPRkNhyyzMR09QBO88BoH0N0dsLAkumI**",
+        "",
+        "The key is valid.",
+        "  -> Answer contains the key of turn 1: yes",
+        "Context id after turn 2: 3aec061b267945b48faaa1fac1c27a91",
+        "New conversation: The generated API key is: **Meknesl_w9qApEb0EBkvgPF9J3oLkrGlYGswIpAvCE16O0B90.MiszCP8Y7Au0_zuYRgoH13JSW6dttyeWN-6vWG4DQBM**",
+        "",
+        "It is valid.",
+        "  -> Answer contains the key of turn 1: no",
+    ];
+
+    // Standard output of the Lab06 server exercise as delivered: it exits before listening, so the companion client never runs.
+    private static readonly string[] Lab06ServerStartOutput =
+    [
+        "Endpoint: https://example.openai.azure.com/",
+        "Deployment: gpt-4o-mini",
+        "",
+        "-------------------------------------------------------------------------------",
+        "",
+        "=== Scenario 1: A2A server with two agents ===",
+        "AuthAgent:         http://localhost:5071/a2a/authAgent",
+        "  Agent card:      http://localhost:5071/a2a/authAgent/.well-known/agent-card.json",
+        "CustomerToneAgent: http://localhost:5071/a2a/customerToneAgent",
+        "  Agent card:      http://localhost:5071/a2a/customerToneAgent/.well-known/agent-card.json",
+        "Press Ctrl+C to stop the server.",
+    ];
+
+    [Theory]
+    [InlineData("azureopenai-lab06-client")]
+    [InlineData("azureopenai-lab06-server")]
+    public void Every_lab06_check_passes_on_the_solution_output_and_only_config_on_the_delivered_exercise(string labId)
+    {
+        LabDefinition lab = LabCatalogTests.LoadRealCatalog().Find(labId)!;
+        (string[] solution, string[] start) = labId.EndsWith("client", StringComparison.Ordinal)
+            ? (Lab06ClientSolutionOutput, Lab06ClientStartOutput)
+            : (Lab06ServerSolutionOutput, Lab06ServerStartOutput);
+
+        Assert.All(Evaluate(lab.Expectations, solution), r => Assert.True(r.Passed, r.Id));
+        Assert.Equal(["config"], Evaluate(lab.Expectations, start).Where(r => r.Passed).Select(r => r.Id));
+    }
+
+    [Fact]
+    public void Lab06_checks_fail_when_the_answers_do_not_come_from_the_tools_of_the_remote_agent()
+    {
+        LabDefinition lab = LabCatalogTests.LoadRealCatalog().Find("azureopenai-lab06-client")!;
+        string[] output = [.. Lab06ClientSolutionOutput.Select(line => line
+            .Replace("Validation of the generated key: The API key is valid.", "Validation of the generated key: The API key is not valid.")
+            .Replace("Validation of a tampered key: The API key you provided is not valid.", "Validation of a tampered key: The API key is valid.")
+            .Replace("  Interface: HTTP+JSON (A2A 1.0)", "  Interface: HTTP+JSON (A2A 0.3)"))
+            .Where(line => !line.StartsWith("Tool called:", StringComparison.Ordinal) && !line.StartsWith("Meknes", StringComparison.Ordinal))];
+
+        Assert.Equal(
+            ["scenario1-card", "scenario1-valid", "scenario1-tampered", "scenario3-tool", "scenario3-key"],
+            Evaluate(lab.Expectations, output).Where(r => !r.Passed).Select(r => r.Id));
+    }
+
+    // Scenario 4 against a server without session store (real run): same contextId, but the agent generated a new key.
+    private static readonly string[] Lab06Scenario4WithoutSessionStore =
+    [
+        "",
+        "-------------------------------------------------------------------------------",
+        "",
+        "=== Scenario 4: A conversation with a remote agent ===",
+        "Generated API key: Meknes7_RYd5MP018Oqz4FwYmC2Nn7SqRUtflbLYwO7yO3E-8.Zv7BAY81pWaBFcU6MJZMcVxUqR-g82VEAPC0HS9POuI",
+        "Context id after turn 1: 98985267997b4f8ab4ecd7c2c4d92bf0",
+        "Same session: The generated API key is: **Meknes63GQQ6bAE6aasaJ8pWD1en_AlGDsT9rN31jiviTbyDs.odYFYIr7-cYVsI12aoidssUQW7hfLinUZnCd4gXk6oA**",
+        "",
+        "It is valid.",
+        "  -> Answer contains the key of turn 1: no",
+        "Context id after turn 2: 98985267997b4f8ab4ecd7c2c4d92bf0",
+        "New conversation: The API key generated is: **MeknesbVPMnBLr3ubCqFkCJdGu7HmSlP_ie4cBEQmkm4RbS44.wi45Scyc3uAZlSZRwIJW1WUZsbelStqET2utjkt6IEs**",
+        "",
+        "It is valid.",
+        "  -> Answer contains the key of turn 1: no",
+    ];
+
+    [Fact]
+    public void Lab06_conversation_checks_fail_when_the_server_keeps_no_session()
+    {
+        LabDefinition client = LabCatalogTests.LoadRealCatalog().Find("azureopenai-lab06-client")!;
+        LabDefinition server = LabCatalogTests.LoadRealCatalog().Find("azureopenai-lab06-server")!;
+        string[] clientOutput = [.. Lab06ClientSolutionOutput.TakeWhile(line => !line.StartsWith("=== Scenario 4:", StringComparison.Ordinal)), .. Lab06Scenario4WithoutSessionStore.SkipWhile(line => !line.StartsWith("=== Scenario 4:", StringComparison.Ordinal))];
+        string[] serverOutput = [.. Lab06ServerSolutionOutput
+            .Where(line => !line.StartsWith("Session store:", StringComparison.Ordinal))
+            .TakeWhile(line => !line.StartsWith("=== Scenario 4:", StringComparison.Ordinal)), .. Lab06Scenario4WithoutSessionStore.SkipWhile(line => !line.StartsWith("=== Scenario 4:", StringComparison.Ordinal))];
+
+        // The context id is the same on both turns: only the answer tells whether the server kept the conversation
+        Assert.Equal(["scenario4-remembered"], Evaluate(client.Expectations, clientOutput).Where(r => !r.Passed).Select(r => r.Id));
+        Assert.Equal(["session-store", "conversation"], Evaluate(server.Expectations, serverOutput).Where(r => !r.Passed).Select(r => r.Id));
+    }
+
+    [Fact]
+    public void Labels_the_lab06_token_usage_with_scenario_3()
+    {
+        TokenUsageSummary usage = Assert.IsType<TokenUsageSummary>(OutputAnalyzer.ParseTokenUsage(Lab06ServerSolutionOutput));
+        Assert.Equal("Scenario 3 · Token Usage", Assert.Single(usage.Reports).Label);
+        Assert.Equal(675, usage.Input);
+    }
+
+    // Standard output of the Lab07 solution, as decoded by the dashboard (spinner lines removed).
+    private static readonly string[] Lab07SolutionOutput =
+    [
+        "Endpoint: https://example.openai.azure.com/",
+        "Chat deployment: gpt-4o-mini",
+        "Embedding deployment: text-embedding-3-small",
+        "",
+        "-------------------------------------------------------------------------------",
+        "",
+        "=== Scenario 1: Fill the vector store with the FAQ ===",
+        "Loaded 20 FAQ entries from Data/sav-faq.json",
+        "Vector store ready: 20 FAQ entries indexed in the collection 'sav-faq'",
+        "",
+        "-------------------------------------------------------------------------------",
+        "",
+        "=== Scenario 2: Semantic search - without an agent ===",
+        "Question: Is there a phone number I can call for help?",
+        "1. faq-010 (score 0.5412): How do I contact customer support?",
+        "   You can reach our customer support via email at support@example.com, by phone at +33 1 23 45 67 89 (Mon-Fri 9am-6pm), or through live chat on our website. Average response time is under 2 hours during business hours.",
+        "2. faq-004 (score 0.3980): Can I change or cancel my order after placing it?",
+        "   You can modify or cancel your order within 1 hour of placing it by contacting our customer service. After this window, or once the order has been shipped, changes or cancellations are no longer possible. You may return the item after delivery instead.",
+        "3. faq-005 (score 0.3671): What should I do if I receive a damaged product?",
+        "   If you receive a damaged product, please contact our customer service within 48 hours of delivery with photos of the damage. We will arrange a free return pickup and send you a replacement or process a full refund, including shipping costs.",
+        "",
+        "-------------------------------------------------------------------------------",
+        "",
+        "=== Scenario 3: Agentic RAG - the agent searches the FAQ with a function tool ===",
+        "Question: I received a broken item yesterday. What should I do?",
+        "Tool called: search_faq(question: received a broken item, top: 3)",
+        "Agent: If you received a damaged product, contact our customer service within 48 hours of delivery with photos of the damage. We will arrange a free return pickup and send you a replacement or process a full refund, including shipping costs (faq-005).",
+        "",
+        "-------------------------------------------------------------------------------",
+        "",
+        "Token Usage:",
+        "  Input tokens: 612",
+        "  Output tokens: 71",
+        "  Total tokens: 683",
+        "",
+        "-------------------------------------------------------------------------------",
+        "",
+        "=== Scenario 4: RAG with TextSearchProvider - the FAQ is searched before every model call ===",
+        "Question: I want to send back a jacket I bought last week. How does it work?",
+        "[TextSearchProvider] Search input: I want to send back a jacket I bought last week. How does it work?",
+        "[TextSearchProvider] Results: faq-001, faq-008",
+        "Agent: Go to 'My Orders' in your account, select the order and click 'Request Return'. You have 30 days from the delivery date, and the jacket must be unused and in its original packaging (faq-001).",
+        "",
+        "-------------------------------------------------------------------------------",
+        "",
+        "Token Usage (first question):",
+        "  Input tokens: 331",
+        "  Output tokens: 52",
+        "  Total tokens: 383",
+        "Question: And how long until I get my money back?",
+        "[TextSearchProvider] Search input: I want to send back a jacket I bought last week. How does it work? | And how long until I get my money back?",
+        "[TextSearchProvider] Results: faq-002, faq-001",
+        "Agent: Refunds are processed within 5-7 business days after we receive and inspect the returned item, to your original payment method (faq-002).",
+        "",
+        "-------------------------------------------------------------------------------",
+        "",
+        "Token Usage (follow-up):",
+        "  Input tokens: 402",
+        "  Output tokens: 38",
+        "  Total tokens: 440",
+        "",
+        "-------------------------------------------------------------------------------",
+        "",
+        "=== Scenario 5: Responses API with your own vector store - nothing stored by the service ===",
+        "Question: I received a broken item yesterday. What should I do?",
+        "Tool called: search_faq(question: I received a broken item yesterday. What should I do?)",
+        "Agent: If you received a broken item, please contact our customer service within 48 hours of delivery and provide photos of the damage. We will arrange a free return pickup and send you a replacement or process a full refund, including shipping costs. ",
+        "You can refer to entry [faq-005] for more details.",
+        "Response resp_0e63af0b3fff4214016aef386a25e08195a7b6611e69d70eba stored by the service: no (404)",
+        "",
+        "-------------------------------------------------------------------------------",
+        "",
+        "Token Usage:",
+        "  Input tokens: 566",
+        "  Output tokens: 91",
+        "  Total tokens: 657",
+        "",
+        "-------------------------------------------------------------------------------",
+        "",
+        "=== Scenario 6: Hosted file search - the service stores, chunks, embeds and searches the FAQ ===",
+        "Uploaded 20 FAQ documents to the service",
+        "Vector store of the service ready: vs_FVr1unmZVYZ3CuCvUavA4phV, 20 files, 26823 bytes",
+        "Question: I received a broken item yesterday. What should I do?",
+        "File search queries (written by the model): I received a broken item yesterday. What should I do? | broken item return policy | received damaged product",
+        "1. faq-005.md (score 0.0333)",
+        "2. faq-002.md (score 0.0328)",
+        "3. faq-016.md (score 0.0328)",
+        "Files cited in the answer: faq-005.md",
+        "Agent: If you received a damaged product, please contact our customer service within 48 hours of delivery and provide photos of the damage. We will arrange for a free return pickup and either send you a replacement or process a full refund, including shipping costs.",
+        "",
+        "-------------------------------------------------------------------------------",
+        "",
+        "Token Usage:",
+        "  Input tokens: 1674",
+        "  Output tokens: 94",
+        "  Total tokens: 1768",
+        "Deleted the vector store and the 20 documents from the service",
+    ];
+
+    // Standard output of the Lab07 exercise as delivered (TODOs not done yet).
+    private static readonly string[] Lab07StartOutput =
+    [
+        "Endpoint: https://example.openai.azure.com/",
+        "Chat deployment: gpt-4o-mini",
+        "Embedding deployment: text-embedding-3-small",
+        "",
+        "-------------------------------------------------------------------------------",
+        "",
+        "=== Scenario 1: Fill the vector store with the FAQ ===",
+        "",
+        "-------------------------------------------------------------------------------",
+        "",
+        "=== Scenario 2: Semantic search - without an agent ===",
+        "",
+        "-------------------------------------------------------------------------------",
+        "",
+        "=== Scenario 3: Agentic RAG - the agent searches the FAQ with a function tool ===",
+        "",
+        "-------------------------------------------------------------------------------",
+        "",
+        "=== Scenario 4: RAG with TextSearchProvider - the FAQ is searched before every model call ===",
+        "",
+        "-------------------------------------------------------------------------------",
+        "",
+        "=== Scenario 5: Responses API with your own vector store - nothing stored by the service ===",
+        "",
+        "-------------------------------------------------------------------------------",
+        "",
+        "=== Scenario 6: Hosted file search - the service stores, chunks, embeds and searches the FAQ ===",
+    ];
+
+    [Fact]
+    public void Every_lab07_check_passes_on_the_solution_output_and_only_config_on_the_delivered_exercise()
+    {
+        LabDefinition lab07 = LabCatalogTests.LoadRealCatalog().Find("azureopenai-lab07")!;
+
+        Assert.All(Evaluate(lab07.Expectations, Lab07SolutionOutput), r => Assert.True(r.Passed, r.Id));
+        Assert.Equal(
+            ["config"],
+            Evaluate(lab07.Expectations, Lab07StartOutput).Where(r => r.Passed).Select(r => r.Id));
+    }
+
+    [Fact]
+    public void Lab07_checks_fail_when_the_answers_do_not_come_from_the_faq()
+    {
+        LabDefinition lab07 = LabCatalogTests.LoadRealCatalog().Find("azureopenai-lab07")!;
+        // Only 3 entries indexed, the search ranks another entry first, the agent answered without the tool and without the FAQ facts,
+        // and the provider searched the follow-up question alone.
+        string[] output =
+        [
+            "=== Scenario 1: Fill the vector store with the FAQ ===",
+            "Loaded 3 FAQ entries from Data/sav-faq.json",
+            "Vector store ready: 3 FAQ entries indexed in the collection 'sav-faq'",
+            "=== Scenario 2: Semantic search - without an agent ===",
+            "1. faq-004 (score 0.4001): Can I change or cancel my order after placing it?",
+            "2. faq-010 (score 0.3900): How do I contact customer support?",
+            "=== Scenario 3: Agentic RAG - the agent searches the FAQ with a function tool ===",
+            "Tool called: (none)",
+            "Agent: I'm sorry to hear that. Please contact the seller as soon as possible.",
+            "=== Scenario 4: RAG with TextSearchProvider - the FAQ is searched before every model call ===",
+            "[TextSearchProvider] Search input: I want to send back a jacket I bought last week. How does it work?",
+            "[TextSearchProvider] Results: faq-008, faq-015",
+            "Agent: Returns are usually accepted within a few weeks.",
+            "[TextSearchProvider] Search input: And how long until I get my money back?",
+            "[TextSearchProvider] Results: faq-002, faq-018",
+            "Agent: Refunds usually take a couple of weeks.",
+        ];
+
+        Assert.DoesNotContain(Evaluate(lab07.Expectations, output), r => r.Passed && !r.Id.EndsWith("-usage", StringComparison.Ordinal));
+    }
+
+    [Fact]
+    public void Labels_the_five_lab07_token_usage_blocks_with_their_scenario()
+    {
+        TokenUsageSummary usage = Assert.IsType<TokenUsageSummary>(OutputAnalyzer.ParseTokenUsage(Lab07SolutionOutput));
+
+        Assert.Equal(
+            ["Scenario 3 · Token Usage", "Scenario 4 · Token Usage (first question)", "Scenario 4 · Token Usage (follow-up)",
+             "Scenario 5 · Token Usage", "Scenario 6 · Token Usage"],
+            usage.Reports.Select(r => r.Label));
+        Assert.Equal(3931L, usage.Total!.Value); // 683 + 383 + 440 + 657 + 1768
+    }
+
+    // Standard output of the Lab08 solution, as decoded by the dashboard (spinner lines removed).
+    private static readonly string[] Lab08SolutionOutput =
+    [
+        "Endpoint: https://example.openai.azure.com/",
+        "Deployment: gpt-4o-mini",
+        "Loaded 50 hotels from Data/hotels.json",
+        "",
+        "-------------------------------------------------------------------------------",
+        "",
+        "=== Scenario 1: JSON - the tool returns objects, the agent answers with structured output ===",
+        "Question: Which hotels cost less than 100 USD per night? Give all of them, ordered by price per night, cheapest first.",
+        "Tool called: get_all_hotels()",
+        "Tool result sent to the model: 10348 characters",
+        "Hotels returned by the agent: 43",
+        "  Backpacker Hostel (Bangkok) - 25 USD/night - stars: 1 - rating: 3.8",
+        "  Budget Stay Express (Chicago) - 35 USD/night - stars: 2 - rating: 3.5",
+        "",
+        "-------------------------------------------------------------------------------",
+        "",
+        "Token Usage (JSON):",
+        "  Input tokens: 3180",
+        "  Output tokens: 1902",
+        "  Total tokens: 5082",
+        "",
+        "-------------------------------------------------------------------------------",
+        "",
+        "=== Scenario 2: CSV - the tool returns text, the agent answers in CSV ===",
+        "Question: Which hotels cost less than 100 USD per night? Give all of them, ordered by price per night, cheapest first.",
+        "Tool called: get_all_hotels()",
+        "Tool result sent to the model: 2765 characters",
+        "Agent answer (CSV):",
+        "Name,City,Stars,PricePerNight,Currency,Rooms,HasPool,HasWifi,Rating",
+        "Backpacker Hostel,Bangkok,1,25,USD,40,false,true,3.8",
+        "Budget Stay Express,Chicago,2,35,USD,60,false,true,3.5",
+        "Hotels parsed back from the CSV answer: 43",
+        "  Backpacker Hostel (Bangkok) - 25 USD/night - stars: 1 - rating: 3.8",
+        "  Budget Stay Express (Chicago) - 35 USD/night - stars: 2 - rating: 3.5",
+        "",
+        "-------------------------------------------------------------------------------",
+        "",
+        "Token Usage (CSV):",
+        "  Input tokens: 1421",
+        "  Output tokens: 698",
+        "  Total tokens: 2119",
+        "",
+        "-------------------------------------------------------------------------------",
+        "",
+        "=== Comparison: JSON vs CSV ===",
+        "                            JSON       CSV   CSV vs JSON",
+        "Tool result (chars)        10348      2765          -73%",
+        "Input tokens                3180      1421          -55%",
+        "Output tokens               1902       698          -63%",
+        "Total tokens                5082      2119          -58%",
+    ];
+
+    // Standard output of the Lab08 exercise as delivered (TODOs not done yet).
+    private static readonly string[] Lab08StartOutput =
+    [
+        "Endpoint: https://example.openai.azure.com/",
+        "Deployment: gpt-4o-mini",
+        "Loaded 50 hotels from Data/hotels.json",
+        "",
+        "-------------------------------------------------------------------------------",
+        "",
+        "=== Scenario 1: JSON - the tool returns objects, the agent answers with structured output ===",
+        "Question: Which hotels cost less than 100 USD per night? Give all of them, ordered by price per night, cheapest first.",
+        "",
+        "-------------------------------------------------------------------------------",
+        "",
+        "=== Scenario 2: CSV - the tool returns text, the agent answers in CSV ===",
+        "Question: Which hotels cost less than 100 USD per night? Give all of them, ordered by price per night, cheapest first.",
+    ];
+
+    [Fact]
+    public void Every_lab08_check_passes_on_the_solution_output_and_only_config_on_the_delivered_exercise()
+    {
+        LabDefinition lab08 = LabCatalogTests.LoadRealCatalog().Find("azureopenai-lab08")!;
+
+        Assert.All(Evaluate(lab08.Expectations, Lab08SolutionOutput), r => Assert.True(r.Passed, r.Id));
+        Assert.Equal(
+            ["config"],
+            Evaluate(lab08.Expectations, Lab08StartOutput).Where(r => r.Passed).Select(r => r.Id));
+    }
+
+    [Fact]
+    public void Lab08_checks_fail_when_the_formats_or_the_savings_are_not_there()
+    {
+        LabDefinition lab08 = LabCatalogTests.LoadRealCatalog().Find("azureopenai-lab08")!;
+        // No tool call in scenario 1 and a small (text) tool result, hotels not ordered by price, a CSV answer wrapped in code fences
+        // with a different header that could not be parsed, and a comparison where CSV costs more than JSON.
+        string[] output =
+        [
+            "=== Scenario 1: JSON - the tool returns objects, the agent answers with structured output ===",
+            "Tool called: (none)",
+            "Tool result sent to the model: 512 characters",
+            "Hotels returned by the agent: 43",
+            "  Grand Plaza Hotel (Paris) - 75 USD/night - stars: 4 - rating: 4.5",
+            "  Backpacker Hostel (Bangkok) - 25 USD/night - stars: 1 - rating: 3.8",
+            "=== Scenario 2: CSV - the tool returns text, the agent answers in CSV ===",
+            "Tool called: get_all_hotels(format: csv)",
+            "Agent answer (CSV):",
+            "```csv",
+            "Name,PricePerNight,Currency",
+            "Backpacker Hostel,25,USD",
+            "```",
+            "The answer is not the expected CSV: The first line must be the header 'Name,City,Stars,PricePerNight,Currency,Rooms,HasPool,HasWifi,Rating', got: 'Name,PricePerNight,Currency'.",
+            "=== Comparison: JSON vs CSV ===",
+            "Tool result (chars)         2765     10348         +274%",
+            "Input tokens                1421      3180         +124%",
+            "Output tokens                698      1902         +172%",
+            "Total tokens                2119      5082         +140%",
+        ];
+
+        Assert.DoesNotContain(Evaluate(lab08.Expectations, output), r => r.Passed && !r.Id.EndsWith("-usage", StringComparison.Ordinal));
+    }
+
+    [Fact]
+    public void Labels_the_two_lab08_token_usage_blocks_with_their_scenario_and_ignores_the_comparison_rows()
+    {
+        TokenUsageSummary usage = Assert.IsType<TokenUsageSummary>(OutputAnalyzer.ParseTokenUsage(Lab08SolutionOutput));
+
+        // The "Input tokens ... -55%" rows of the comparison table have no colon: they are not token usage blocks.
+        Assert.Equal(["Scenario 1 · Token Usage (JSON)", "Scenario 2 · Token Usage (CSV)"], usage.Reports.Select(r => r.Label));
+        Assert.Equal(7201L, usage.Total!.Value); // 5082 + 2119
+    }
+
+    // Standard output of the Lab09 solution, as decoded by the dashboard (spinner lines removed), with "Y" typed at the prompt.
+    private static readonly string[] Lab09SolutionOutput =
+    [
+        "Endpoint: https://example.openai.azure.com/",
+        "Deployment: gpt-4o-mini",
+        "Agent instructions: You are an HR assistant. Use the tools to look up employees and to delete employee data when asked. Only report a deletion as done when the delete_employee_data tool confirmed it; if a deletion was rejected, say so and give the reason.",
+        "",
+        "-------------------------------------------------------------------------------",
+        "",
+        "=== Scenario 1: Human approval at the console ===",
+        "User: Delete all the data of the employee with the ID EMP001.",
+        "Agent run paused: 1 approval request(s) pending",
+        "APPROVAL REQUIRED",
+        "The agent would like to invoke the following sensitive function:",
+        "  Function: delete_employee_data",
+        "  Arguments: employeeId=EMP001",
+        "Please reply Y to approve, or anything else to reject:",
+        "Function call approved by user.",
+        "Tool results:",
+        "Tool result (delete_employee_data): Sensitive operation executed: All data for employee 'EMP001' has been permanently deleted. This action cannot be undone.",
+        "Agent answer:",
+        "All data for the employee with ID EMP001 has been permanently deleted. This action cannot be undone.",
+        "",
+        "-------------------------------------------------------------------------------",
+        "",
+        "Token Usage (2 runs):",
+        "  Input tokens: 317",
+        "  Output tokens: 38",
+        "  Total tokens: 355",
+        "",
+        "-------------------------------------------------------------------------------",
+        "",
+        "=== Scenario 2: Several approval requests decided by a policy ===",
+        "User: The employees EMP001 and EMP002 asked us to erase their data. Look up both employees, then delete the data of each of them.",
+        "Agent run paused: 2 approval request(s) pending",
+        "Approval requested for delete_employee_data(employeeId=EMP001)",
+        "Policy decision: approved - EMP001 (Alice Martin) left the company on 2025-12-31.",
+        "Approval requested for delete_employee_data(employeeId=EMP002)",
+        "Policy decision: rejected - EMP002 (Bob Lee) is still employed: only the data of former employees can be deleted.",
+        "Tool results:",
+        "Tool result (get_employee_info): Employee EMP001: Alice Martin, Engineering, left the company on 2025-12-31.",
+        "Tool result (get_employee_info): Employee EMP002: Bob Lee, Finance, currently employed.",
+        "Tool result (delete_employee_data): Tool call invocation rejected. EMP002 (Bob Lee) is still employed: only the data of former employees can be deleted.",
+        "Tool result (delete_employee_data): Sensitive operation executed: All data for employee 'EMP001' has been permanently deleted. This action cannot be undone.",
+        "Agent answer:",
+        "I found the following information:",
+        "- **EMP001**: Alice Martin, Engineering, left the company on 2025-12-31. (Data has been successfully deleted.)",
+        "- **EMP002**: Bob Lee, Finance, is currently employed. (Deletion was rejected because only former employees can have their data deleted.)",
+        "",
+        "-------------------------------------------------------------------------------",
+        "",
+        "Token Usage (2 runs):",
+        "  Input tokens: 879",
+        "  Output tokens: 175",
+        "  Total tokens: 1054",
+        "",
+        "-------------------------------------------------------------------------------",
+        "",
+        "=== Scenario 3: Guardrails with an agent run middleware ===",
+        "User: What is the salary of the employee EMP002?",
+        "[Guardrail] Request blocked: forbidden topic 'salary'. The agent was not called.",
+        "Agent: I can't help with salaries or passwords. Please contact the HR department directly.",
+        "Token usage: none, the model was not called",
+        "User: My phone number is +33 6 12 34 56 78 and my e-mail is ada.lovelace@example.com. Call me back with the status of the employee EMP001.",
+        "[Guardrail] Request: 2 personal data item(s) masked before the agent sees them",
+        "[Guardrail] Answer: 0 personal data item(s) masked",
+        "Agent: Employee EMP001, Alice Martin, was part of the Engineering department and left the company on December 31, 2025.",
+        "",
+        "-------------------------------------------------------------------------------",
+        "",
+        "Token Usage (1 runs):",
+        "  Input tokens: 432",
+        "  Output tokens: 44",
+        "  Total tokens: 476",
+    ];
+
+    // Standard output of the Lab09 exercise as delivered (TODOs not done yet): no prompt, no approval, no tool.
+    private static readonly string[] Lab09StartOutput =
+    [
+        "Endpoint: https://example.openai.azure.com/",
+        "Deployment: gpt-4o-mini",
+        "Agent instructions: You are an HR assistant. Use the tools to look up employees and to delete employee data when asked. Only report a deletion as done when the delete_employee_data tool confirmed it; if a deletion was rejected, say so and give the reason.",
+        "",
+        "-------------------------------------------------------------------------------",
+        "",
+        "=== Scenario 1: Human approval at the console ===",
+        "User: Delete all the data of the employee with the ID EMP001.",
+        "",
+        "-------------------------------------------------------------------------------",
+        "",
+        "=== Scenario 2: Several approval requests decided by a policy ===",
+        "User: The employees EMP001 and EMP002 asked us to erase their data. Look up both employees, then delete the data of each of them.",
+        "",
+        "-------------------------------------------------------------------------------",
+        "",
+        "=== Scenario 3: Guardrails with an agent run middleware ===",
+    ];
+
+    [Fact]
+    public void Every_lab09_check_passes_on_the_solution_output_and_only_config_on_the_delivered_exercise()
+    {
+        LabDefinition lab09 = LabCatalogTests.LoadRealCatalog().Find("azureopenai-lab09")!;
+
+        Assert.True(lab09.Interactive);
+        Assert.All(Evaluate(lab09.Expectations, Lab09SolutionOutput), r => Assert.True(r.Passed, r.Id));
+        Assert.Equal(
+            ["config"],
+            Evaluate(lab09.Expectations, Lab09StartOutput).Where(r => r.Passed).Select(r => r.Id));
+    }
+
+    [Fact]
+    public void Lab09_checks_fail_when_the_approvals_are_not_honored()
+    {
+        LabDefinition lab09 = LabCatalogTests.LoadRealCatalog().Find("azureopenai-lab09")!;
+        // Scenario 1: the user approved but the tool never ran (the approval was sent without the session).
+        // Scenario 2: the harmless tool was surfaced as an approval request, the policy decisions are inverted,
+        // and the deletion of EMP002 was executed although it was rejected.
+        // Scenario 3: no guardrail around the agent.
+        string[] output =
+        [
+            "=== Scenario 1: Human approval at the console ===",
+            "Agent run paused: 1 approval request(s) pending",
+            "APPROVAL REQUIRED",
+            "  Function: delete_employee_data",
+            "  Arguments: employeeId=EMP002",
+            "Function call approved by user.",
+            "Tool results: none (no tool was executed)",
+            "Agent answer:",
+            "I could not delete the data.",
+            "=== Scenario 2: Several approval requests decided by a policy ===",
+            "Agent run paused: 4 approval request(s) pending",
+            "Approval requested for get_employee_info(employeeId=EMP001)",
+            "Policy decision: rejected - The employee ID is missing from the call.",
+            "Approval requested for delete_employee_data(employeeId=EMP001)",
+            "Policy decision: rejected - EMP001 (Alice Martin) is still employed: only the data of former employees can be deleted.",
+            "Approval requested for delete_employee_data(employeeId=EMP002)",
+            "Policy decision: approved - EMP002 (Bob Lee) left the company on 2025-12-31.",
+            "Tool results:",
+            "Tool result (get_employee_info): Employee EMP001: Alice Martin, Engineering, left the company on 2025-12-31.",
+            "Tool result (get_employee_info): Employee EMP002: Bob Lee, Finance, currently employed.",
+            "Tool result (delete_employee_data): Tool call invocation rejected. EMP002 (Bob Lee) is still employed: only the data of former employees can be deleted.",
+            "Tool result (delete_employee_data): Sensitive operation executed: All data for employee 'EMP002' has been permanently deleted. This action cannot be undone.",
+            // Scenario 3: the guardrail was not applied: the model answered the forbidden question and saw the personal data.
+            "=== Scenario 3: Guardrails with an agent run middleware ===",
+            "User: What is the salary of the employee EMP002?",
+            "Agent: I don't have access to salary information.",
+            "Token usage: 312",
+            "Agent: I will call you back at ada.lovelace@example.com about EMP001.",
+        ];
+
+        Assert.DoesNotContain(Evaluate(lab09.Expectations, output), r => r.Passed && !r.Id.EndsWith("-usage", StringComparison.Ordinal));
+    }
+
+    [Fact]
+    public void Labels_the_three_lab09_token_usage_blocks_with_their_scenario()
+    {
+        TokenUsageSummary usage = Assert.IsType<TokenUsageSummary>(OutputAnalyzer.ParseTokenUsage(Lab09SolutionOutput));
+
+        Assert.Equal(["Scenario 1 · Token Usage (2 runs)", "Scenario 2 · Token Usage (2 runs)", "Scenario 3 · Token Usage (1 runs)"], usage.Reports.Select(r => r.Label));
+        Assert.Equal(1885L, usage.Total!.Value); // 355 + 1054 + 476
+    }
+
+    // Standard output of the Lab10 solution, as decoded by the dashboard (spinner lines removed). The [server] lines are the
+    // stderr of the stdio MCP server (a child process), relayed by the lab on its own stdout.
+    private static readonly string[] Lab10SolutionOutput =
+    [
+        "Endpoint: https://example.openai.azure.com/",
+        "Deployment: gpt-4o-mini",
+        "",
+        "-------------------------------------------------------------------------------",
+        "",
+        "=== Scenario 1: Expose the agent as a remote MCP tool (Streamable HTTP) ===",
+        "MCP server listening on http://localhost:5100/mcp/companyassistant",
+        "Query: Get the information of the employee with the ID EMP003.",
+        "MCP tools available (1):",
+        "- CompanyAssistant: Answers questions about the employees and the meeting rooms of the company, and books meeting rooms.",
+        "  Input schema: {\"type\":\"object\",\"properties\":{\"query\":{\"description\":\"Input query to invoke the agent.\",\"type\":\"string\"}},\"required\":[\"query\"]}",
+        "",
+        "Tool result:",
+        "Here is the information for the employee with ID EMP003:",
+        "",
+        "- **Name:** Charlie Brown",
+        "- **Department:** Engineering",
+        "- **Position:** Tech Lead",
+        "- **Email:** charlie.brown@company.com",
+        "- **Vacation Days Remaining:** 12",
+        "",
+        "-------------------------------------------------------------------------------",
+        "",
+        "=== Scenario 2: Expose the agent as a local MCP tool (stdio) ===",
+        "Query: Which meeting rooms can host at least 10 people?",
+        "[server] Endpoint: https://example.openai.azure.com/",
+        "[server] Deployment: gpt-4o-mini",
+        "[server] CompanyAssistant MCP server ready on stdio.",
+        "MCP tools available (1):",
+        "- CompanyAssistant: Answers questions about the employees and the meeting rooms of the company, and books meeting rooms.",
+        "  Input schema: {\"type\":\"object\",\"properties\":{\"query\":{\"description\":\"Input query to invoke the agent.\",\"type\":\"string\"}},\"required\":[\"query\"]}",
+        "",
+        "Tool result:",
+        "The meeting rooms that can host at least 10 people are:",
+        "",
+        "1. **Innovation Lab (ROOM-A)**",
+        "   - Capacity: 10 people",
+        "   - Features: Projector, Whiteboard, Video Conference",
+        "",
+        "2. **Executive Suite (ROOM-C)**",
+        "   - Capacity: 20 people",
+        "   - Features: Projector, Video Conference, Catering Service",
+        "",
+        "-------------------------------------------------------------------------------",
+        "",
+        "=== Scenario 3: Another agent uses the CompanyAssistant through MCP ===",
+        "User: Book the meeting room ROOM-B for the employee EMP002 on 2026-10-26 from 10:00 to 11:00, subject: Campaign review. Tell me the name of the room and the name of the employee.",
+        "[server] Endpoint: https://example.openai.azure.com/",
+        "[server] Deployment: gpt-4o-mini",
+        "[server] CompanyAssistant MCP server ready on stdio.",
+        "",
+        "Tool called: CompanyAssistant(query: Book the meeting room ROOM-B for the employee EMP002 on 2026-10-26 from 10:00 to 11:00, subject: Campaign review.)",
+        "Tool result: The meeting room ROOM-B has been successfully booked for the employee EMP002. Here are the details:",
+        "",
+        "- **Room:** Brainstorm Corner (ROOM-B)",
+        "- **Date:** 2026-10-26",
+        "- **Time:** 10:00 - 11:00",
+        "- **Subject:** Campaign review",
+        "- **Booked by:** Bob Johnson",
+        "",
+        "If you need anything else, let me know!",
+        "Tool called: CompanyAssistant(query: Get the name of the employee with ID EMP002.)",
+        "Tool result: The name of the employee with ID EMP002 is Bob Johnson.",
+        "Tool called: CompanyAssistant(query: Get the name of the room with ID ROOM-B.)",
+        "Tool result: The name of the room with ID ROOM-B is \"Brainstorm Corner.\"",
+        "Agent answer:",
+        "The meeting room ROOM-B has been successfully booked for the employee Bob Johnson on 2026-10-26 from 10:00 to 11:00 for the subject \"Campaign review.\"",
+        "",
+        "- **Room Name:** Brainstorm Corner",
+        "- **Employee Name:** Bob Johnson",
+        "",
+        "-------------------------------------------------------------------------------",
+        "",
+        "Token Usage:",
+        "  Input tokens: 568",
+        "  Output tokens: 169",
+        "  Total tokens: 737",
+    ];
+
+    // Standard output of the Lab10 exercise as delivered (TODOs not done yet): no server, no MCP client, no agent run.
+    private static readonly string[] Lab10StartOutput =
+    [
+        "Endpoint: https://example.openai.azure.com/",
+        "Deployment: gpt-4o-mini",
+        "",
+        "-------------------------------------------------------------------------------",
+        "",
+        "=== Scenario 1: Expose the agent as a remote MCP tool (Streamable HTTP) ===",
+        "Query: Get the information of the employee with the ID EMP003.",
+        "",
+        "-------------------------------------------------------------------------------",
+        "",
+        "=== Scenario 2: Expose the agent as a local MCP tool (stdio) ===",
+        "Query: Which meeting rooms can host at least 10 people?",
+        "",
+        "-------------------------------------------------------------------------------",
+        "",
+        "=== Scenario 3: Another agent uses the CompanyAssistant through MCP ===",
+        "User: Book the meeting room ROOM-B for the employee EMP002 on 2026-10-26 from 10:00 to 11:00, subject: Campaign review. Tell me the name of the room and the name of the employee.",
+    ];
+
+    [Fact]
+    public void Every_lab10_check_passes_on_the_solution_output_and_only_config_on_the_delivered_exercise()
+    {
+        LabDefinition lab10 = LabCatalogTests.LoadRealCatalog().Find("azureopenai-lab10")!;
+
+        Assert.False(lab10.Interactive);
+        Assert.Null(lab10.Companion);
+        Assert.All(Evaluate(lab10.Expectations, Lab10SolutionOutput), r => Assert.True(r.Passed, r.Id));
+        Assert.Equal(
+            ["config"],
+            Evaluate(lab10.Expectations, Lab10StartOutput).Where(r => r.Passed).Select(r => r.Id));
+    }
+
+    [Fact]
+    public void Lab10_checks_fail_when_the_answers_do_not_come_from_the_exposed_agent()
+    {
+        LabDefinition lab10 = LabCatalogTests.LoadRealCatalog().Find("azureopenai-lab10")!;
+        // Scenario 1: the HTTP server is up and lists the tool, but the agent failed inside the server.
+        // Scenario 2: the stdio server never started (no [server] line, no tool) and the answer does not come from the tools.
+        // Scenario 3: the OfficeAssistant answered by itself, with invented names.
+        string[] output =
+        [
+            "=== Scenario 1: Expose the agent as a remote MCP tool (Streamable HTTP) ===",
+            "MCP server listening on http://localhost:5100/mcp/companyassistant",
+            "Query: Get the information of the employee with the ID EMP003.",
+            "MCP tools available (1):",
+            "- CompanyAssistant: Answers questions about the employees and the meeting rooms of the company, and books meeting rooms.",
+            "  Input schema: {\"type\":\"object\",\"properties\":{\"query\":{\"description\":\"Input query to invoke the agent.\",\"type\":\"string\"}},\"required\":[\"query\"]}",
+            "The tool reported an error:",
+            "An error occurred invoking 'CompanyAssistant'.",
+            "=== Scenario 2: Expose the agent as a local MCP tool (stdio) ===",
+            "Query: Which meeting rooms can host at least 10 people?",
+            "Tool result:",
+            "I do not have access to the list of meeting rooms.",
+            "=== Scenario 3: Another agent uses the CompanyAssistant through MCP ===",
+            "User: Book the meeting room ROOM-B for the employee EMP002 on 2026-10-26 from 10:00 to 11:00, subject: Campaign review. Tell me the name of the room and the name of the employee.",
+            "Tool calls: none",
+            "Agent answer:",
+            "ROOM-B (Room Alpha) is booked for John Doe.",
+        ];
+
+        Assert.Equal(
+            ["scenario1-server", "scenario1-tool"],
+            Evaluate(lab10.Expectations, output).Where(r => r.Passed).Select(r => r.Id));
+    }
+
+    [Fact]
+    public void Labels_the_lab10_token_usage_with_scenario_3()
+    {
+        TokenUsageSummary usage = Assert.IsType<TokenUsageSummary>(OutputAnalyzer.ParseTokenUsage(Lab10SolutionOutput));
+
+        Assert.Equal(["Scenario 3 · Token Usage"], usage.Reports.Select(r => r.Label));
+        Assert.Equal(737L, usage.Total!.Value);
+    }
+
+    // Standard output of the Lab11 solution (real run, shortened: content filter results, latency details, ids and most
+    // response headers removed). The handler prints every HTTP request and response, with the Authorization header masked.
+    private static readonly string[] Lab11SolutionOutput =
+    [
+        "Endpoint: https://example.openai.azure.com/",
+        "Deployment: gpt-4o-mini",
+        "",
+        "-------------------------------------------------------------------------------",
+        "",
+        "=== Scenario 1: See the HTTP traffic of an agent run ===",
+        "User: Hello, what is the capital of France?",
+        "",
+        "-------------------------------------------------------------------------------",
+        "",
+        "=== HTTP REQUEST #1 ===",
+        "[URL] POST https://example.openai.azure.com/openai/v1/chat/completions",
+        "[Headers]",
+        "   Accept: application/json",
+        "   User-Agent: OpenAI/2.13.0 (.NET 10.0.13; macOS 27.0.0),MEAI/10.10.0 agent-framework-dotnet/1.22.0 (feat=v1.40000000002001)",
+        "   X-Stainless-Lang: csharp",
+        "   Authorization: Bearer [MASKED]",
+        "   X-agent-name: AIAgentWithCustomHttpTransport",
+        "   Content-Type: application/json",
+        "",
+        "[Body]",
+        "   {",
+        "     \"messages\": [",
+        "       {",
+        "         \"role\": \"user\",",
+        "         \"content\": \"Hello, what is the capital of France?\"",
+        "       }",
+        "     ],",
+        "     \"model\": \"gpt-4o-mini\"",
+        "   }",
+        "",
+        "=== HTTP RESPONSE #1 ===",
+        "[Status] 200 OK (OK) in 1485 ms",
+        "[Headers]",
+        "   x-ms-served-model: gpt-4o-mini-2024-07-18",
+        "   x-ratelimit-remaining-tokens: 99984",
+        "   apim-request-id: 1524c5f7-a7d4-412c-9184-6407e26f837b",
+        "   x-ms-region: France Central",
+        "   Content-Length: 1543",
+        "   Content-Type: application/json",
+        "",
+        "[Body]",
+        "   {",
+        "     \"choices\": [",
+        "       {",
+        "         \"finish_reason\": \"stop\",",
+        "         \"message\": {",
+        "           \"content\": \"The capital of France is Paris.\",",
+        "           \"role\": \"assistant\"",
+        "         }",
+        "       }",
+        "     ],",
+        "     \"model\": \"gpt-4o-mini-2024-07-18\",",
+        "     \"usage\": {",
+        "       \"completion_tokens\": 7,",
+        "       \"prompt_tokens\": 16,",
+        "       \"total_tokens\": 23",
+        "     }",
+        "   }",
+        "",
+        "-------------------------------------------------------------------------------",
+        "",
+        "Agent answer:",
+        "The capital of France is Paris.",
+        "HTTP requests sent by this run: 1",
+        "",
+        "Token Usage:",
+        "  Input tokens: 16",
+        "  Output tokens: 7",
+        "  Total tokens: 23",
+        "",
+        "-------------------------------------------------------------------------------",
+        "",
+        "=== Scenario 2: One agent run, several HTTP requests (function calling) ===",
+        "User: What is the weather like in Amsterdam?",
+        "",
+        "-------------------------------------------------------------------------------",
+        "",
+        "=== HTTP REQUEST #2 ===",
+        "[URL] POST https://example.openai.azure.com/openai/v1/chat/completions",
+        "[Headers]",
+        "   Accept: application/json",
+        "   User-Agent: OpenAI/2.13.0 (.NET 10.0.13; macOS 27.0.0),MEAI/10.10.0 agent-framework-dotnet/1.22.0 (feat=v1.40000000002001)",
+        "   X-Stainless-Lang: csharp",
+        "   Authorization: Bearer [MASKED]",
+        "   X-agent-name: AIAgentWithCustomHttpTransport",
+        "   Content-Type: application/json",
+        "",
+        "[Body]",
+        "   {",
+        "     \"messages\": [",
+        "       {",
+        "         \"role\": \"system\",",
+        "         \"content\": \"You are a helpful assistant. Use the tools to answer.\"",
+        "       },",
+        "       {",
+        "         \"role\": \"user\",",
+        "         \"content\": \"What is the weather like in Amsterdam?\"",
+        "       }",
+        "     ],",
+        "     \"model\": \"gpt-4o-mini\",",
+        "     \"tools\": [",
+        "       {",
+        "         \"type\": \"function\",",
+        "         \"function\": {",
+        "           \"description\": \"Get the weather for a given location.\",",
+        "           \"name\": \"get_weather\",",
+        "         }",
+        "       }",
+        "     ],",
+        "     \"tool_choice\": \"auto\"",
+        "   }",
+        "",
+        "=== HTTP RESPONSE #2 ===",
+        "[Status] 200 OK (OK) in 656 ms",
+        "[Headers]",
+        "   x-ms-served-model: gpt-4o-mini-2024-07-18",
+        "   x-ratelimit-remaining-tokens: 99926",
+        "   apim-request-id: 5b8848d0-4460-476c-abd7-d56357965f99",
+        "   x-ms-region: France Central",
+        "   Content-Length: 1671",
+        "   Content-Type: application/json",
+        "",
+        "[Body]",
+        "   {",
+        "     \"choices\": [",
+        "       {",
+        "         \"finish_reason\": \"tool_calls\",",
+        "         \"message\": {",
+        "           \"content\": null,",
+        "           \"role\": \"assistant\",",
+        "           \"tool_calls\": [",
+        "             {",
+        "               \"function\": {",
+        "                 \"arguments\": \"{\\\"location\\\":\\\"Amsterdam\\\"}\",",
+        "                 \"name\": \"get_weather\"",
+        "               },",
+        "               \"type\": \"function\"",
+        "             }",
+        "           ]",
+        "         }",
+        "       }",
+        "     ],",
+        "     \"model\": \"gpt-4o-mini-2024-07-18\",",
+        "     \"usage\": {",
+        "       \"completion_tokens\": 14,",
+        "       \"prompt_tokens\": 74,",
+        "       \"total_tokens\": 88",
+        "     }",
+        "   }",
+        "",
+        "-------------------------------------------------------------------------------",
+        "",
+        "",
+        "-------------------------------------------------------------------------------",
+        "",
+        "=== HTTP REQUEST #3 ===",
+        "[URL] POST https://example.openai.azure.com/openai/v1/chat/completions",
+        "[Headers]",
+        "   Accept: application/json",
+        "   User-Agent: OpenAI/2.13.0 (.NET 10.0.13; macOS 27.0.0),MEAI/10.10.0 agent-framework-dotnet/1.22.0 (feat=v1.40000000002001)",
+        "   X-Stainless-Lang: csharp",
+        "   Authorization: Bearer [MASKED]",
+        "   X-agent-name: AIAgentWithCustomHttpTransport",
+        "   Content-Type: application/json",
+        "",
+        "[Body]",
+        "   {",
+        "     \"messages\": [",
+        "       {",
+        "         \"role\": \"system\",",
+        "         \"content\": \"You are a helpful assistant. Use the tools to answer.\"",
+        "       },",
+        "       {",
+        "         \"role\": \"user\",",
+        "         \"content\": \"What is the weather like in Amsterdam?\"",
+        "       },",
+        "       {",
+        "         \"role\": \"assistant\",",
+        "         \"tool_calls\": [",
+        "           {",
+        "             \"type\": \"function\",",
+        "             \"function\": {",
+        "               \"name\": \"get_weather\",",
+        "               \"arguments\": \"{\\n  \\\"location\\\": \\\"Amsterdam\\\"\\n}\"",
+        "             }",
+        "           }",
+        "         ]",
+        "       },",
+        "       {",
+        "         \"role\": \"tool\",",
+        "         \"tool_call_id\": \"call_zQNpb2BQFXHiLMJDlfN5HINS\",",
+        "         \"content\": \"\\\"The weather in Amsterdam is cloudy with a high of 15 degrees Celsius.\\\"\"",
+        "       }",
+        "     ],",
+        "     \"model\": \"gpt-4o-mini\",",
+        "     \"tool_choice\": \"auto\"",
+        "   }",
+        "",
+        "=== HTTP RESPONSE #3 ===",
+        "[Status] 200 OK (OK) in 772 ms",
+        "[Headers]",
+        "   x-ms-served-model: gpt-4o-mini-2024-07-18",
+        "   x-ratelimit-remaining-tokens: 99889",
+        "   apim-request-id: b1561fe4-f16c-4b9a-ab1e-fe356cac8249",
+        "   x-ms-region: France Central",
+        "   Content-Length: 1597",
+        "   Content-Type: application/json",
+        "",
+        "[Body]",
+        "   {",
+        "     \"choices\": [",
+        "       {",
+        "         \"finish_reason\": \"stop\",",
+        "         \"message\": {",
+        "           \"content\": \"The weather in Amsterdam is currently cloudy with a high of 15 degrees Celsius.\",",
+        "           \"role\": \"assistant\"",
+        "         }",
+        "       }",
+        "     ],",
+        "     \"model\": \"gpt-4o-mini-2024-07-18\",",
+        "     \"usage\": {",
+        "       \"completion_tokens\": 17,",
+        "       \"prompt_tokens\": 111,",
+        "       \"total_tokens\": 128",
+        "     }",
+        "   }",
+        "",
+        "-------------------------------------------------------------------------------",
+        "",
+        "Agent answer:",
+        "The weather in Amsterdam is currently cloudy with a high of 15 degrees Celsius.",
+        "HTTP requests sent by this run: 2",
+        "",
+        "Token Usage:",
+        "  Input tokens: 185",
+        "  Output tokens: 31",
+        "  Total tokens: 216",
+
+        "",
+        "-------------------------------------------------------------------------------",
+        "",
+        "=== Scenario 3: Observe an agent with OpenTelemetry ===",
+        "User: I am going to Amsterdam tomorrow. Do I need an umbrella?",
+        "Agent answer:",
+        "The weather in Amsterdam tomorrow will be cloudy with a high of 15 degrees Celsius. It might be a good idea to take an umbrella just in case of rain.",
+        "Spans recorded by OpenTelemetry: 8",
+        "  invoke_agent TravelAssistant(828286a3b37a4d9ab1868c65bf0b6cc2) (4057 ms) - input tokens 204, output tokens 49",
+        "      chat gpt-4o-mini (1153 ms) - input tokens 83, output tokens 15",
+        "      execute_tool WeatherAgent (1434 ms)",
+        "          invoke_agent WeatherAgent(5e464ff2d59f411085f0520058c0a577) (1431 ms) - input tokens 171, output tokens 30",
+        "              chat gpt-4o-mini (635 ms) - input tokens 67, output tokens 14",
+        "              execute_tool get_weather (1 ms)",
+        "              chat gpt-4o-mini (794 ms) - input tokens 104, output tokens 16",
+        "      chat gpt-4o-mini (1464 ms) - input tokens 121, output tokens 34",
+        "HTTP requests sent by this run: 4",
+        "",
+        "Token Usage:",
+        "  Input tokens: 204",
+        "  Output tokens: 49",
+        "  Total tokens: 253",
+    ];
+
+    // Standard output of the Lab11 exercise as delivered (TODOs not done yet): no client, no agent run, no HTTP log.
+    private static readonly string[] Lab11StartOutput =
+    [
+        "Endpoint: https://example.openai.azure.com/",
+        "Deployment: gpt-4o-mini",
+        "",
+        "-------------------------------------------------------------------------------",
+        "",
+        "=== Scenario 1: See the HTTP traffic of an agent run ===",
+        "User: Hello, what is the capital of France?",
+        "",
+        "-------------------------------------------------------------------------------",
+        "",
+        "=== Scenario 2: One agent run, several HTTP requests (function calling) ===",
+        "User: What is the weather like in Amsterdam?",
+
+        "",
+        "-------------------------------------------------------------------------------",
+        "",
+        "=== Scenario 3: Observe an agent with OpenTelemetry ===",
+        "User: I am going to Amsterdam tomorrow. Do I need an umbrella?",
+    ];
+
+    [Fact]
+    public void Every_lab11_check_passes_on_the_solution_output_and_only_config_on_the_delivered_exercise()
+    {
+        LabDefinition lab11 = LabCatalogTests.LoadRealCatalog().Find("azureopenai-lab11")!;
+
+        Assert.False(lab11.Interactive);
+        Assert.Null(lab11.Companion);
+        Assert.All(Evaluate(lab11.Expectations, Lab11SolutionOutput), r => Assert.True(r.Passed, r.Id));
+        Assert.Equal(
+            ["config"],
+            Evaluate(lab11.Expectations, Lab11StartOutput).Where(r => r.Passed).Select(r => r.Id));
+    }
+
+    [Fact]
+    public void Lab11_checks_fail_when_the_handler_only_forwards_the_requests()
+    {
+        LabDefinition lab11 = LabCatalogTests.LoadRealCatalog().Find("azureopenai-lab11")!;
+        // Setup and scenarios done, handler not done: the agents answer through the transport and the requests are
+        // counted, but nothing of the HTTP traffic is logged.
+        string[] output =
+        [
+            "Endpoint: https://example.openai.azure.com/",
+            "=== Scenario 1: See the HTTP traffic of an agent run ===",
+            "User: Hello, what is the capital of France?",
+            "Agent answer:",
+            "The capital of France is Paris.",
+            "HTTP requests sent by this run: 1",
+            "Token Usage:",
+            "  Input tokens: 16",
+            "  Output tokens: 7",
+            "  Total tokens: 23",
+            "=== Scenario 2: One agent run, several HTTP requests (function calling) ===",
+            "User: What is the weather like in Amsterdam?",
+            "Agent answer:",
+            "The weather in Amsterdam is cloudy with a high of 15 degrees Celsius.",
+            "HTTP requests sent by this run: 2",
+            "Token Usage:",
+            "  Input tokens: 185",
+            "  Output tokens: 31",
+            "  Total tokens: 216",
+        ];
+
+        Assert.Equal(
+            ["config", "scenario1-answer", "scenario1-usage", "scenario2-answer", "scenario2-usage"],
+            Evaluate(lab11.Expectations, output).Where(r => r.Passed).Select(r => r.Id));
+    }
+
+    [Fact]
+    public void Lab11_checks_fail_when_a_credential_is_logged_or_the_tool_is_not_called()
+    {
+        LabDefinition lab11 = LabCatalogTests.LoadRealCatalog().Find("azureopenai-lab11")!;
+        // Scenario 1: the beginning of the key is shown (masked after 20 characters) and an api-key header is logged in clear.
+        // Scenario 2: the model answered without calling the tool: one request, no tool_calls, no tool result sent back.
+        string[] output =
+        [
+            "Endpoint: https://example.openai.azure.com/",
+            "=== Scenario 1: See the HTTP traffic of an agent run ===",
+            "=== HTTP REQUEST #1 ===",
+            "[URL] POST https://example.openai.azure.com/openai/v1/chat/completions",
+            "[Headers]",
+            "   Authorization: Bearer 0123456789abc... [MASKED]",
+            "   api-key: 0123456789abcdef0123456789abcdef",
+            "   X-agent-name: AIAgentWithCustomHttpTransport",
+            "",
+            "=== HTTP RESPONSE #1 ===",
+            "[Status] 200 OK (OK) in 812 ms",
+            "Agent answer:",
+            "The capital of France is Paris.",
+            "HTTP requests sent by this run: 1",
+            "Token Usage:",
+            "  Input tokens: 16",
+            "=== Scenario 2: One agent run, several HTTP requests (function calling) ===",
+            "=== HTTP REQUEST #2 ===",
+            "[URL] POST https://example.openai.azure.com/openai/v1/chat/completions",
+            "[Headers]",
+            "   Authorization: Bearer [MASKED]",
+            "[Body]",
+            "   {",
+            "     \"tools\": [",
+            "       {",
+            "         \"type\": \"function\",",
+            "         \"function\": {",
+            "           \"name\": \"get_weather\"",
+            "         }",
+            "       }",
+            "     ]",
+            "   }",
+            "=== HTTP RESPONSE #2 ===",
+            "[Status] 200 OK (OK) in 640 ms",
+            "[Body]",
+            "   {",
+            "     \"choices\": [ { \"finish_reason\": \"stop\", \"message\": { \"content\": \"I cannot check the weather in real time.\" } } ]",
+            "   }",
+            "Agent answer:",
+            "I cannot check the weather in real time.",
+            "HTTP requests sent by this run: 1",
+            "Token Usage:",
+            "  Input tokens: 60",
+        ];
+
+        Assert.Equal(
+            ["config", "scenario1-request", "scenario1-header", "scenario1-response", "scenario1-answer", "scenario1-usage", "scenario2-tools", "scenario2-usage"],
+            Evaluate(lab11.Expectations, output).Where(r => r.Passed).Select(r => r.Id));
+    }
+
+    [Fact]
+    public void Labels_the_lab11_token_usage_by_scenario_and_ignores_the_usage_printed_in_the_http_bodies()
+    {
+        TokenUsageSummary usage = Assert.IsType<TokenUsageSummary>(OutputAnalyzer.ParseTokenUsage(Lab11SolutionOutput));
+
+        // The "usage" objects of the response bodies ("prompt_tokens": 74) and the rate limit headers are not usage reports
+        // The token counts of the spans ("- input tokens 171, output tokens 30") are not usage reports either
+        Assert.Equal(["Scenario 1 · Token Usage", "Scenario 2 · Token Usage", "Scenario 3 · Token Usage"], usage.Reports.Select(r => r.Label));
+        Assert.Equal(405L, usage.Input!.Value); // 16 + 185 + 204
+        Assert.Equal(492L, usage.Total!.Value); // 23 + 216 + 253
+    }
+
+    [Fact]
+    public void Lab11_trace_checks_fail_when_only_the_agents_are_instrumented_and_the_http_log_stays_on()
+    {
+        LabDefinition lab11 = LabCatalogTests.LoadRealCatalog().Find("azureopenai-lab11")!;
+        // UseOpenTelemetry on the agents only (no clientFactory): no chat or execute_tool span, so the weather agent is not
+        // nested in the travel assistant; and WriteTraffic stayed true, so the HTTP log is printed during the traced run.
+        string[] output =
+        [
+            "=== Scenario 3: Observe an agent with OpenTelemetry ===",
+            "=== HTTP REQUEST #4 ===",
+            "[URL] POST https://example.openai.azure.com/openai/v1/chat/completions",
+            "Agent answer:",
+            "Take an umbrella.",
+            "Spans recorded by OpenTelemetry: 2",
+            "  invoke_agent WeatherAgent(5e464ff2d59f411085f0520058c0a577) (1431 ms)",
+            "  invoke_agent TravelAssistant(828286a3b37a4d9ab1868c65bf0b6cc2) (4057 ms) - input tokens 204, output tokens 49",
+            "HTTP requests sent by this run: 4",
+            "Token Usage:",
+            "  Input tokens: 204",
+        ];
+
+        Assert.Equal(
+            ["scenario3-spans", "scenario3-usage"],
+            Evaluate(lab11.Expectations, output).Where(r => r.Id.StartsWith("scenario3", StringComparison.Ordinal) && r.Passed).Select(r => r.Id));
+    }
+
+    // Standard output of the Lab12 solution (real run), with "I work remotely on Fridays." then an empty line typed in the chat
+    // of scenario 2. The typed lines are not on stdout: the "You: " prompt is followed by the next output of the program.
+    private static readonly string[] Lab12SolutionOutput =
+    [
+        "Endpoint: https://example.openai.azure.com/",
+        "Deployment: gpt-4o-mini",
+        "",
+        "-------------------------------------------------------------------------------",
+        "",
+        "Agent with a long-term memory - the memories of the user are stored outside of the application",
+        "User id: ada",
+        "MemoryAssistant instructions: You are a friendly personal assistant. Use what you remember about the user to personalize your answers. When a conversation starts without a message from the user, introduce yourself and welcome the user, by name if you know it.",
+        "Memory extractor instructions: You extract facts about the user from the user message: name, job, city, interests, preferences, constraints. Write each fact as a short sentence in the third person, for example: \"The user works as a nurse.\". Do not extract a fact that is already known, nor questions or requests. Return an empty list when there is no new fact.",
+        "",
+        "-------------------------------------------------------------------------------",
+        "",
+        "=== Scenario 1: Remember the user from one session to another ===",
+        "Memories of user 'ada' cleared (6 deleted)",
+        "First session",
+        "User: Hi! I'm Ada, a software developer from Lyon. I love hiking in the Alps and I'm vegetarian.",
+        "[Memory] No memory of user 'ada' yet: nothing added to the request",
+        "[Memory] 5 memories extracted and stored for user 'ada' (extraction run: 265 tokens):",
+        "  + The user's name is Ada.",
+        "  + The user works as a software developer.",
+        "  + The user is from Lyon.",
+        "  + The user loves hiking in the Alps.",
+        "  + The user is vegetarian.",
+        "Agent: Hi Ada! It's great to meet you. Welcome! As a software developer and a vegetarian who enjoys hiking in the Alps, you must have some interesting stories to tell. How can I assist you today?",
+        "Memories stored for user 'ada': 5",
+        "  - The user's name is Ada.",
+        "  - The user works as a software developer.",
+        "  - The user is from Lyon.",
+        "  - The user loves hiking in the Alps.",
+        "  - The user is vegetarian.",
+        "",
+        "-------------------------------------------------------------------------------",
+        "",
+        "New session (empty chat history)",
+        "User: What is my name? Suggest a dinner idea and a weekend activity for me.",
+        "[Memory] 5 memories of user 'ada' added to the request",
+        "[Memory] No new memory for user 'ada' (extraction run: 256 tokens)",
+        "Agent: Hello, Ada! It's great to hear from you. For dinner, how about a delicious vegetarian stir-fry with tofu, colorful veggies, and rice? You can toss in some teriyaki sauce for extra flavor!",
+        "",
+        "As for a weekend activity, since you love hiking in the Alps, how about planning a day hike on one of the beautiful trails near Lyon? You could explore a new route and enjoy the stunning scenery. What do you think?",
+        "",
+        "-------------------------------------------------------------------------------",
+        "",
+        "Token Usage (new session, with memories):",
+        "  Input tokens: 119",
+        "  Output tokens: 90",
+        "  Total tokens: 209",
+        "",
+        "-------------------------------------------------------------------------------",
+        "",
+        "=== Scenario 2: Chat with the agent - it greets you with what it remembers ===",
+        "[Memory] 5 memories of user 'ada' added to the request",
+        "[Memory] No user message in this run: nothing to extract",
+        "Agent: Hello, Ada! I'm your friendly personal assistant, and I'm here to help you with anything you need. How can I assist you today?",
+        "Type a message, or an empty line / 'exit' to end the chat.",
+        "You: [Memory] 5 memories of user 'ada' added to the request",
+        "[Memory] 1 memory extracted and stored for user 'ada' (extraction run: 254 tokens):",
+        "  + The user works remotely on Fridays.",
+        "Agent: That's great to hear, Ada! Working remotely on Fridays can be a nice way to wrap up the week. Do you have any special plans for your remote workday, or do you like to keep it flexible?",
+        "You: ",
+        "Chat ended. Run scenario 2 again: the agent still remembers what you told it (the memories are stored outside of the application).",
+    ];
+
+    // Standard output of the Lab12 exercise as delivered (TODOs not done yet): no storage, no agent, no provider.
+    private static readonly string[] Lab12StartOutput =
+    [
+        "Endpoint: https://example.openai.azure.com/",
+        "Deployment: gpt-4o-mini",
+        "",
+        "-------------------------------------------------------------------------------",
+        "",
+        "Agent with a long-term memory - the memories of the user are stored outside of the application",
+        "User id: ada",
+        "",
+        "-------------------------------------------------------------------------------",
+        "",
+        "=== Scenario 1: Remember the user from one session to another ===",
+        "First session",
+        "User: Hi! I'm Ada, a software developer from Lyon. I love hiking in the Alps and I'm vegetarian.",
+        "",
+        "-------------------------------------------------------------------------------",
+        "",
+        "New session (empty chat history)",
+        "User: What is my name? Suggest a dinner idea and a weekend activity for me.",
+        "",
+        "-------------------------------------------------------------------------------",
+        "",
+        "=== Scenario 2: Chat with the agent - it greets you with what it remembers ===",
+        "Type a message, or an empty line / 'exit' to end the chat.",
+        "Chat ended. Run scenario 2 again: the agent still remembers what you told it (the memories are stored outside of the application).",
+    ];
+
+    [Fact]
+    public void Every_lab12_check_passes_on_the_solution_output_and_only_config_on_the_delivered_exercise()
+    {
+        LabDefinition lab12 = LabCatalogTests.LoadRealCatalog().Find("azureopenai-lab12")!;
+
+        Assert.True(lab12.Interactive);
+        Assert.Null(lab12.Companion);
+        Assert.All(Evaluate(lab12.Expectations, Lab12SolutionOutput), r => Assert.True(r.Passed, r.Id));
+        Assert.Equal(
+            ["config"],
+            Evaluate(lab12.Expectations, Lab12StartOutput).Where(r => r.Passed).Select(r => r.Id));
+    }
+
+    [Fact]
+    public void Lab12_checks_fail_when_the_context_provider_is_not_written()
+    {
+        LabDefinition lab12 = LabCatalogTests.LoadRealCatalog().Find("azureopenai-lab12")!;
+        // Agent and scenarios done, provider skeleton only: no [Memory] line, nothing stored, the new session knows nothing.
+        string[] output =
+        [
+            "Endpoint: https://example.openai.azure.com/",
+            "=== Scenario 1: Remember the user from one session to another ===",
+            "Memories of user 'ada' cleared (0 deleted)",
+            "First session",
+            "User: Hi! I'm Ada, a software developer from Lyon. I love hiking in the Alps and I'm vegetarian.",
+            "Agent: Hi Ada! It's great to meet you! How can I assist you today?",
+            "Memories stored for user 'ada': 0",
+            "New session (empty chat history)",
+            "User: What is my name? Suggest a dinner idea and a weekend activity for me.",
+            "Agent: I don't know your name yet! For dinner, how about a homemade stir-fry? As for a weekend activity, consider a hike.",
+            "Token Usage (new session, with memories):",
+            "  Input tokens: 71",
+            "  Output tokens: 85",
+            "  Total tokens: 156",
+            "=== Scenario 2: Chat with the agent - it greets you with what it remembers ===",
+            "Agent: Hello! I'm your friendly personal assistant. What can I assist you with today?",
+            "Type a message, or an empty line / 'exit' to end the chat.",
+        ];
+
+        Assert.Equal(
+            ["config", "scenario1-usage"],
+            Evaluate(lab12.Expectations, output).Where(r => r.Passed).Select(r => r.Id));
+    }
+
+    [Fact]
+    public void Lab12_checks_fail_when_the_memories_are_stored_but_never_given_to_the_model()
+    {
+        LabDefinition lab12 = LabCatalogTests.LoadRealCatalog().Find("azureopenai-lab12")!;
+        // StoreAIContextAsync done, ProvideAIContextAsync not done: the memories reach the storage, but neither the new session
+        // nor the greeting can use them (and the answer of the new session is guessed from the question only).
+        string[] output =
+        [
+            "Endpoint: https://example.openai.azure.com/",
+            "=== Scenario 1: Remember the user from one session to another ===",
+            "Memories of user 'ada' cleared (5 deleted)",
+            "First session",
+            "User: Hi! I'm Ada, a software developer from Lyon. I love hiking in the Alps and I'm vegetarian.",
+            "[Memory] 5 memories extracted and stored for user 'ada' (extraction run: 265 tokens):",
+            "  + The user's name is Ada.",
+            "  + The user works as a software developer.",
+            "  + The user is from Lyon.",
+            "  + The user loves hiking in the Alps.",
+            "  + The user is vegetarian.",
+            "Agent: Hi Ada! It's great to meet you!",
+            "Memories stored for user 'ada': 5",
+            "  - The user's name is Ada.",
+            "  - The user works as a software developer.",
+            "  - The user is from Lyon.",
+            "  - The user loves hiking in the Alps.",
+            "  - The user is vegetarian.",
+            "New session (empty chat history)",
+            "User: What is my name? Suggest a dinner idea and a weekend activity for me.",
+            "[Memory] No new memory for user 'ada' (extraction run: 222 tokens)",
+            "Agent: I don't know your name yet! For dinner, how about a vegetarian stir-fry?",
+            "Token Usage (new session, with memories):",
+            "  Input tokens: 71",
+            "=== Scenario 2: Chat with the agent - it greets you with what it remembers ===",
+            "[Memory] No user message in this run: nothing to extract",
+            "Agent: Hello! I'm your friendly personal assistant. How can I help you today?",
+            "Type a message, or an empty line / 'exit' to end the chat.",
+        ];
+
+        Assert.Equal(
+            ["config", "scenario1-extracted", "scenario1-stored", "scenario1-usage"],
+            Evaluate(lab12.Expectations, output).Where(r => r.Passed).Select(r => r.Id));
+    }
+
+    [Theory]
+    // Real answer of a dashboard run: "vegetable stir-fry with tofu" and "hiking in the Alps", without the word "vegetarian"
+    [InlineData("Agent: Hello, Ada! For dinner, how about trying a delicious vegetable stir-fry with tofu?|As for the weekend activity, since you love hiking in the Alps, how about planning a hike?", true)]
+    [InlineData("Agent: Hello, Ada! How about a vegetarian lasagna, and a walk in Lyon?", true)]
+    // The name alone, with ideas that do not come from the memories: not enough
+    [InlineData("Agent: Hello, Ada! How about a stir-fry with your favorite vegetables, and a visit to a museum?", false)]
+    // The preferences without the name
+    [InlineData("Agent: Hello! How about a vegetarian stir-fry, and a hike in the Alps?", false)]
+    public void Lab12_recall_check_needs_the_name_and_a_preference_that_only_the_memories_give(string answer, bool expected)
+    {
+        LabDefinition lab12 = LabCatalogTests.LoadRealCatalog().Find("azureopenai-lab12")!;
+        string[] output =
+        [
+            "=== Scenario 1: Remember the user from one session to another ===",
+            "New session (empty chat history)",
+            "User: What is my name? Suggest a dinner idea and a weekend activity for me.",
+            "[Memory] 5 memories of user 'ada' added to the request",
+            "[Memory] No new memory for user 'ada' (extraction run: 256 tokens)",
+            .. answer.Split('|'),
+            "",
+            "Token Usage (new session, with memories):",
+            "  Input tokens: 119",
+        ];
+
+        Assert.Equal(expected, Evaluate(lab12.Expectations, output).Single(r => r.Id == "scenario1-recall").Passed);
+    }
+
+    [Fact]
+    public void Labels_the_lab12_token_usage_with_its_scenario_and_ignores_the_extraction_cost_of_the_provider()
+    {
+        TokenUsageSummary usage = Assert.IsType<TokenUsageSummary>(OutputAnalyzer.ParseTokenUsage(Lab12SolutionOutput));
+
+        // The "(extraction run: 265 tokens)" of the [Memory] lines is not a usage report
+        Assert.Equal(["Scenario 1 · Token Usage (new session, with memories)"], usage.Reports.Select(r => r.Label));
+        Assert.Equal(119L, usage.Input!.Value);
+        Assert.Equal(209L, usage.Total!.Value);
+    }
+
+    // Standard output of the MultiAgentSystem Lab01 solution, as decoded by the dashboard (spinner lines removed).
+    private static readonly string[] MultiAgentLab01SolutionOutput =
+    [
+        "Endpoint: https://example.openai.azure.com/",
+        "Deployment: gpt-4o-mini",
+        "",
+        "-------------------------------------------------------------------------------",
+        "",
+        "=== Scenario 1: Delegation by code - a reviewer agent checks the answer ===",
+        "Customer: I bought headphones 10 days ago. They are unused and still in their original packaging. Can I return them and get a refund?",
+        "AfterSalesExpert: Yes, you can return the headphones for a refund since you are within the standard return period of 30 days, and the product is unused and in its original packaging. Please ensure you have the original receipt or proof of purchase.",
+        "Token Usage (AfterSalesExpert):",
+        "  Input tokens: 755",
+        "  Output tokens: 46",
+        "  Total tokens: 801",
+        "Quality review: 10/10",
+        "  Feedback: The answer correctly states the return eligibility based on the return policy and asks for necessary proof of purchase.",
+        "Decision: sent to the customer",
+        "Token Usage (QualityReviewer):",
+        "  Input tokens: 954",
+        "  Output tokens: 28",
+        "  Total tokens: 982",
+        "Answer written by hand (wrong on purpose): Of course! You can return any product within 90 days, even used, and we refund you in cash within 24 hours.",
+        "Quality review: 1/10",
+        "  Feedback: The answer contradicts the rules by stating a 90-day return period, allowing used items, and suggesting a cash refund within 24 hours.",
+        "Decision: held back for a human agent (score below 7)",
+        "Token Usage (QualityReviewer):",
+        "  Input tokens: 935",
+        "  Output tokens: 37",
+        "  Total tokens: 972",
+        "",
+        "-------------------------------------------------------------------------------",
+        "",
+        "=== Scenario 2: Delegation by the model - specialist agents as tools ===",
+        "Tool ask_order_specialist: Asks the order specialist about an order: product, status, purchase and delivery dates. Include the order number in the query.",
+        "  Parameters: {\"type\":\"object\",\"properties\":{\"query\":{\"description\":\"Input query to invoke the agent.\",\"type\":\"string\"}},\"required\":[\"query\"]}",
+        "Tool ask_after_sales_expert: Asks the after-sales expert about the rules of the store: returns, refunds, exchanges, warranty and delivery problems. The expert does not see the conversation: give it all the facts it needs.",
+        "  Parameters: {\"type\":\"object\",\"properties\":{\"query\":{\"description\":\"Input query to invoke the agent.\",\"type\":\"string\"}},\"required\":[\"query\"]}",
+        "Customer: Hello, my order ORD-1042 arrived yesterday and the laptop screen is broken. What can I do?",
+        "[Delegation] ask_order_specialist(query: \"Get details for order number ORD-1042 including product details, status, purchase date, and delivery date.\")",
+        "[Delegation] ask_order_specialist returned: - **Product**: ZenBook 14 laptop (electronics)",
+        "[Delegation] ask_after_sales_expert(query: \"What is the process for returning a broken item and getting a refund or exchange? The customer has reported a broken laptop screen upon delivery.\")",
+        "[Delegation] ask_after_sales_expert returned: For a broken item received, such as a laptop screen, the customer should report the damage within 48 hours. They need to provide documentation, including photos of the damage and packaging. The action for damaged items in transit is either a full refund or a free replacement. If they prefer an exchange, it will be processed per the standard exchange policy within 30 days.",
+        "FrontDesk: I'm sorry to hear about the issue with your laptop. Your order, the ZenBook 14, was delivered on October 24, 2026. Since the screen is broken, please report this damage within 48 hours, and ensure you have photos of the damage and the packaging. You can choose between a full refund or a free replacement. If you want an exchange, it can be processed within 30 days. Let me know if you need further assistance with the process!",
+        "Token Usage (FrontDesk only, without the specialists):",
+        "  Input tokens: 644",
+        "  Output tokens: 194",
+        "  Total tokens: 838",
+        "",
+        "-------------------------------------------------------------------------------",
+        "",
+        "=== Scenario 3: Keep the context of a specialist with a session ===",
+        "Tool TicketSpecialist: Keeps the support ticket of the current customer case up to date. Give it each new fact about the case.",
+        "[Call] TicketSpecialist(query: \"Order ORD-1042: the laptop screen arrived broken.\")",
+        "[Call] TicketSpecialist(query: \"The customer wants a replacement.\")",
+        "[Call] TicketSpecialist(query: \"Order ORD-1042: the laptop screen arrived broken.\")",
+        "[Call] TicketSpecialist(query: \"The customer wants a replacement.\")",
+        "Ticket after the second call - a new session for each call:",
+        "  Order: unknown",
+        "  Problem: unknown",
+        "  Customer request: replacement",
+        "  -> Order number of the first call (ORD-1042) kept: no",
+        "Ticket after the second call - one session for every call:",
+        "  Order: ORD-1042",
+        "  Problem: The laptop screen arrived broken.",
+        "  Customer request: The customer wants a replacement.",
+        "  -> Order number of the first call (ORD-1042) kept: yes",
+        "Token usage: not available, an agent tool returns only the text of the answer.",
+    ];
+
+    // Standard output of the MultiAgentSystem Lab01 exercise as delivered (TODOs not done yet).
+    private static readonly string[] MultiAgentLab01StartOutput =
+    [
+        "Endpoint: https://example.openai.azure.com/",
+        "Deployment: gpt-4o-mini",
+        "",
+        "-------------------------------------------------------------------------------",
+        "",
+        "=== Scenario 1: Delegation by code - a reviewer agent checks the answer ===",
+        "",
+        "-------------------------------------------------------------------------------",
+        "",
+        "=== Scenario 2: Delegation by the model - specialist agents as tools ===",
+        "",
+        "-------------------------------------------------------------------------------",
+        "",
+        "=== Scenario 3: Keep the context of a specialist with a session ===",
+    ];
+
+    [Fact]
+    public void Every_multiagent_lab01_check_passes_on_the_solution_output_and_only_config_on_the_delivered_exercise()
+    {
+        LabDefinition lab = LabCatalogTests.LoadRealCatalog().Find("multiagent-lab01")!;
+
+        Assert.All(Evaluate(lab.Expectations, MultiAgentLab01SolutionOutput), r => Assert.True(r.Passed, r.Id));
+        Assert.Equal(
+            ["config"],
+            Evaluate(lab.Expectations, MultiAgentLab01StartOutput).Where(r => r.Passed).Select(r => r.Id));
+    }
+
+    [Fact]
+    public void Multiagent_lab01_checks_fail_when_the_code_does_not_decide_and_the_specialists_are_not_tools()
+    {
+        LabDefinition lab = LabCatalogTests.LoadRealCatalog().Find("multiagent-lab01")!;
+        // The reviewer approved the wrong answer, the front desk answered alone, and both tools shared the same session.
+        string[] output =
+        [
+            "=== Scenario 1: Delegation by code - a reviewer agent checks the answer ===",
+            "AfterSalesExpert: Yes, you can return them within 30 days.",
+            "Quality review: 5/10",
+            "Decision: held back for a human agent (score below 7)",
+            "Answer written by hand (wrong on purpose): Of course! You can return any product within 90 days.",
+            "Quality review: 8/10",
+            "Decision: sent to the customer",
+            "=== Scenario 2: Delegation by the model - specialist agents as tools ===",
+            "Tool ask_order_specialist: Asks the order specialist about an order.",
+            "  Parameters: {\"type\":\"object\",\"properties\":{\"query\":{\"type\":\"string\"},\"orderId\":{\"type\":\"string\"}}}",
+            "[Delegation] ask_order_specialist(query: \"Tell me about the order\")",
+            "FrontDesk: Please contact our customer service.",
+            "=== Scenario 3: Keep the context of a specialist with a session ===",
+            "Ticket after the second call - a new session for each call:",
+            "  Order: ORD-1042",
+            "  -> Order number of the first call (ORD-1042) kept: yes",
+            "Ticket after the second call - one session for every call:",
+            "  Order: unknown",
+            "  -> Order number of the first call (ORD-1042) kept: no",
+        ];
+
+        Assert.Equal(
+            ["scenario1-answer"],
+            Evaluate(lab.Expectations, output).Where(r => r.Passed).Select(r => r.Id));
+    }
+
+    [Fact]
+    public void Labels_the_multiagent_lab01_token_usage_with_the_agent_of_each_run()
+    {
+        TokenUsageSummary usage = Assert.IsType<TokenUsageSummary>(OutputAnalyzer.ParseTokenUsage(MultiAgentLab01SolutionOutput));
+
+        // One report per direct call of scenario 1 and one for the front desk of scenario 2; the specialists called as tools report nothing
+        Assert.Equal(
+            [
+                "Scenario 1 · Token Usage (AfterSalesExpert)",
+                "Scenario 1 · Token Usage (QualityReviewer)",
+                "Scenario 1 · Token Usage (QualityReviewer)",
+                "Scenario 2 · Token Usage (FrontDesk only, without the specialists)",
+            ],
+            usage.Reports.Select(r => r.Label));
+    }
+
+    // Standard output of the MultiAgentSystem Lab02 solution (real run, streamed texts shortened to their first lines).
+    private static readonly string[] MultiAgentLab02SolutionOutput =
+    [
+        "Endpoint: https://example.openai.azure.com/",
+        "Deployment: gpt-4o-mini",
+        ">>> Scenarios to run: 1, 2, 3 (the implemented ones)",
+        ">>> Running scenario 1: A sequential workflow - build it, run it, read its output",
+        "",
+        "-------------------------------------------------------------------------------",
+        "",
+        "=== Scenario 1: A sequential workflow - build it, run it, read its output ===",
+        "Workflow meeting-notes: MeetingSummarizer -> ActionItemsExtractor -> OutputMessages",
+        "Workflow output (3 messages):",
+        "  [user] (input): Meeting Transcript - Project Alpha Weekly Sync ... (2412 characters)",
+        "  [assistant] MeetingSummarizer: - Mohammed finished the authentication module and will write unit tests by Friday, also addressing database performance issues next week.",
+        "      - Emma's dashboard mockups are ready for review; she needs feedback by Wednesday and API specs from Mohammed for mobile layouts.",
+        "      - Michael reported three critical bugs in the payment module, prioritizing the security issue PAY-201 for Mohammed to address this afternoon.",
+        "  [assistant] ActionItemsExtractor: 1. Mohammed - Write unit tests for the authentication module - Due Friday.",
+        "      2. Mohammed - Address database performance issues - Due next week.",
+        "      3. Emma - Gather feedback on dashboard mockups - Due Wednesday.",
+        "Token usage: not available without the streaming events (see scenario 2).",
+        ">>> Running scenario 2: Follow the pipeline - what each agent receives",
+        "",
+        "-------------------------------------------------------------------------------",
+        "",
+        "=== Scenario 2: Follow the pipeline - what each agent receives ===",
+        "--- Context: the whole conversation (default) ---",
+        "Workflow meeting-follow-up: ActionItemsExtractor -> FollowUpWriter -> Translator -> OutputMessages",
+        "ActionItemsExtractor:",
+        "1. Mohammed - Write unit tests for the authentication module - Due date: Friday",
+        "2. Mohammed - Optimize database queries - Due date: Next week",
+        "FollowUpWriter:",
+        "Subject: Follow-up on Action Items from Project Alpha Weekly Sync",
+        "",
+        "Dear Team,",
+        "",
+        "Thank you for attending the meeting. Below are the action items discussed along with their respective owners and due dates:",
+        "",
+        "1. Mohammed - Write unit tests for the authentication module - Due date: Friday",
+        "2. Mohammed - Optimize database queries - Due date: Next week",
+        "",
+        "Please ensure that you complete your tasks by the mentioned due dates. Let’s keep the momentum going!",
+        "",
+        "Best,",
+        "Sarah",
+        "Translator:",
+        "Objet : Suivi des actions issues de la synchronisation hebdomadaire du projet Alpha",
+        "",
+        "Chère équipe,",
+        "",
+        "Merci d'avoir assisté à la réunion. Ci-dessous les actions discutées ainsi que leurs responsables et dates d'échéance respectives :",
+        "",
+        "1. Mohammed - Écrire des tests unitaires pour le module d'authentification - Date d'échéance : Vendredi",
+        "2. Mohammed - Optimiser les requêtes de la base de données - Date d'échéance : La semaine prochaine",
+        "",
+        "Veuillez vous assurer de compléter vos tâches avant les dates d'échéance mentionnées. Maintenons l'élan !",
+        "",
+        "Cordialement,",
+        "Sarah",
+        "[Context] ActionItemsExtractor received 1 message: user",
+        "  Token Usage (ActionItemsExtractor):",
+        "    Input tokens: 576",
+        "    Output tokens: 175",
+        "    Total tokens: 751",
+        "[Context] FollowUpWriter received 2 messages: user, ActionItemsExtractor",
+        "  Token Usage (FollowUpWriter):",
+        "    Input tokens: 766",
+        "    Output tokens: 237",
+        "    Total tokens: 1003",
+        "[Context] Translator received 3 messages: user, ActionItemsExtractor, FollowUpWriter",
+        "  Token Usage (Translator):",
+        "    Input tokens: 980",
+        "    Output tokens: 347",
+        "    Total tokens: 1327",
+        "[Context] OutputMessages received 4 messages: user, ActionItemsExtractor, FollowUpWriter, Translator",
+        "Workflow output (4 messages): user, ActionItemsExtractor, FollowUpWriter, Translator",
+        "--- Context: the previous agent only (chainOnlyAgentResponses: true) ---",
+        "Workflow meeting-follow-up-chained: ActionItemsExtractor -> FollowUpWriter -> Translator -> OutputMessages",
+        "ActionItemsExtractor:",
+        "1. Mohammed - Write unit tests for the authentication module - Due date: January 12, 2026",
+        "2. Mohammed - Look into optimizing database queries - Due date: January 15, 2026",
+        "FollowUpWriter:",
+        "Subject: Follow-Up on Meeting - Action Items",
+        "",
+        "Dear Team,",
+        "",
+        "Thank you for your participation in our recent meeting. Below are the action items assigned, along with their respective owners and due dates:",
+        "",
+        "1. Mohammed - Write unit tests for the authentication module - Due date: January 12, 2026",
+        "2. Mohammed - Look into optimizing database queries - Due date: January 15, 2026",
+        "",
+        "Please ensure that you complete your action items by the specified dates. Let’s keep up the great work!",
+        "",
+        "Best,",
+        "[Your Name]",
+        "Translator:",
+        "Objet : Suivi de la réunion - Actions à entreprendre",
+        "",
+        "Chère équipe,",
+        "",
+        "Merci pour votre participation à notre récente réunion. Voici les actions assignées, ainsi que leurs propriétaires respectifs et les dates d'échéance :",
+        "",
+        "1. Mohammed - Écrire des tests unitaires pour le module d'authentification - Date d'échéance : 12 janvier 2026",
+        "2. Mohammed - Examiner l'optimisation des requêtes de la base de données - Date d'échéance : 15 janvier 2026",
+        "",
+        "Veuillez vous assurer de compléter vos actions dans les délais indiqués. Continuons à faire du bon travail !",
+        "",
+        "Cordialement,",
+        "[Votre Nom]",
+        "[Context] ActionItemsExtractor received 1 message: user",
+        "  Token Usage (ActionItemsExtractor):",
+        "    Input tokens: 576",
+        "    Output tokens: 212",
+        "    Total tokens: 788",
+        "[Context] FollowUpWriter received 1 message: ActionItemsExtractor",
+        "  Token Usage (FollowUpWriter):",
+        "    Input tokens: 282",
+        "    Output tokens: 280",
+        "    Total tokens: 562",
+        "[Context] Translator received 1 message: FollowUpWriter",
+        "  Token Usage (Translator):",
+        "    Input tokens: 319",
+        "    Output tokens: 358",
+        "    Total tokens: 677",
+        "[Context] OutputMessages received 1 message: Translator",
+        "Workflow output (1 message): Translator",
+        ">>> Running scenario 3: Human in the loop - approve a tool call before it runs",
+        "",
+        "-------------------------------------------------------------------------------",
+        "",
+        "=== Scenario 3: Human in the loop - approve a tool call before it runs ===",
+        "Workflow meeting-minutes: ActionItemsExtractor -> FollowUpWriter -> MinutesSender -> OutputMessages",
+        "[Approval] send_email(to: \"Sarah, Mohammed, Emma, Michael\", subject: \"Follow-Up on Action Items from Project Alpha Weekly Sync\", body: (1112 characters)) waits for an approval",
+        "Run status: PendingRequests",
+        "[Approval] send_email: approved",
+        "Workflow output (8 messages):",
+        "  [user] (input): Meeting Transcript - Project Alpha Weekly Sync ... (2412 characters)",
+        "  [assistant] ActionItemsExtractor: 1. Mohammed - Write unit tests for the authentication module - Due date: Friday.",
+        "      2. Mohammed - Optimize database queries - Due date: Next week.",
+        "      3. Emma - Gather feedback on the new dashboard mockups - Due date: Wednesday.",
+        "  [assistant] FollowUpWriter: Subject: Follow-Up on Action Items from Project Alpha Weekly Sync",
+        "",
+        "      Dear Team,",
+        "",
+        "      Thank you for your participation in the meeting. Below are the action items we discussed, along with their owners and due dates:",
+        "",
+        "      1. Mohammed - Write unit tests for the authentication module - Due date: **Friday**.",
+        "      2. Mohammed - Optimize database queries - Due date: **Next week**.",
+        "",
+        "      Please ensure you complete your tasks by the respective due dates. Let me know if you need any assistance.",
+        "",
+        "      Best,",
+        "      Sarah",
+        "  [assistant] MinutesSender: (asks for an approval)",
+        "  [user] (the answer of the code): (approval: approved)",
+        "  [assistant] MinutesSender: (calls send_email)",
+        "  [tool] MinutesSender: (result: Email sent to Sarah, Mohammed, Emma, Michael (subject: Follow-Up on Action Items from Project Alpha Weekly Sync, 1112 characters).)",
+        "  [assistant] MinutesSender: The email was sent successfully to Sarah, Mohammed, Emma, and Michael.",
+        "Run status: Idle",
+    ];
+
+    // Standard output of the MultiAgentSystem Lab02 exercise as delivered (TODOs not done yet).
+    private static readonly string[] MultiAgentLab02StartOutput =
+    [
+        "Endpoint: https://example.openai.azure.com/",
+        "Deployment: gpt-4o-mini",
+        ">>> Scenarios to run: 1, 2, 3 (the implemented ones)",
+        ">>> Running scenario 1: A sequential workflow - build it, run it, read its output",
+        "",
+        "-------------------------------------------------------------------------------",
+        "",
+        "=== Scenario 1: A sequential workflow - build it, run it, read its output ===",
+        ">>> Running scenario 2: Follow the pipeline - what each agent receives",
+        "",
+        "-------------------------------------------------------------------------------",
+        "",
+        "=== Scenario 2: Follow the pipeline - what each agent receives ===",
+        ">>> Running scenario 3: Human in the loop - approve a tool call before it runs",
+        "",
+        "-------------------------------------------------------------------------------",
+        "",
+        "=== Scenario 3: Human in the loop - approve a tool call before it runs ===",
+    ];
+
+    [Fact]
+    public void Every_multiagent_lab02_check_passes_on_the_solution_output_and_only_config_on_the_delivered_exercise()
+    {
+        LabDefinition lab = LabCatalogTests.LoadRealCatalog().Find("multiagent-lab02")!;
+
+        Assert.All(Evaluate(lab.Expectations, MultiAgentLab02SolutionOutput), r => Assert.True(r.Passed, r.Id));
+        Assert.Equal(
+            ["config"],
+            Evaluate(lab.Expectations, MultiAgentLab02StartOutput).Where(r => r.Passed).Select(r => r.Id));
+    }
+
+    [Fact]
+    public void Multiagent_lab02_checks_fail_when_the_context_is_not_chained_and_the_approval_is_not_handled()
+    {
+        LabDefinition lab = LabCatalogTests.LoadRealCatalog().Find("multiagent-lab02")!;
+        // The agents were not in the order of the pipeline, chainOnlyAgentResponses was left out of the second workflow,
+        // and the approval request was never answered: the run stayed paused, without output.
+        string[] output =
+        [
+            ">>> Running scenario 1: A sequential workflow - build it, run it, read its output",
+            "Workflow meeting-notes: ActionItemsExtractor -> MeetingSummarizer -> OutputMessages",
+            "Workflow output (3 messages):",
+            "  [user] (input): Meeting Transcript - Project Alpha Weekly Sync ... (2412 characters)",
+            "  [assistant] ActionItemsExtractor: 1. Mohammed - Write unit tests - Due Friday.",
+            "  [assistant] MeetingSummarizer: - The team reviewed the action items.",
+            ">>> Running scenario 2: Follow the pipeline - what each agent receives",
+            "Translator:",
+            "Objet : Suivi de la réunion",
+            "[Context] ActionItemsExtractor received 1 message: user",
+            "  Token Usage (ActionItemsExtractor):",
+            "    Input tokens: 576",
+            "    Output tokens: 175",
+            "    Total tokens: 751",
+            "[Context] FollowUpWriter received 2 messages: user, ActionItemsExtractor",
+            "  Token Usage (FollowUpWriter):",
+            "    Input tokens: 766",
+            "    Output tokens: 237",
+            "    Total tokens: 1003",
+            "[Context] Translator received 3 messages: user, ActionItemsExtractor, FollowUpWriter",
+            "  Token Usage (Translator):",
+            "    Input tokens: 980",
+            "    Output tokens: 347",
+            "    Total tokens: 1327",
+            "Workflow output (4 messages): user, ActionItemsExtractor, FollowUpWriter, Translator",
+            ">>> Running scenario 3: Human in the loop - approve a tool call before it runs",
+            "Workflow meeting-minutes: ActionItemsExtractor -> FollowUpWriter -> MinutesSender -> OutputMessages",
+            "[Approval] send_email(to: \"Sarah, Mohammed, Emma, Michael\", subject: \"Follow-Up\", body: (999 characters)) waits for an approval",
+            "Run status: PendingRequests",
+        ];
+
+        Assert.Equal(
+            ["scenario2-full-context", "scenario2-full-output", "scenario2-translation", "scenario3-pipeline", "scenario3-paused"],
+            Evaluate(lab.Expectations, output).Where(r => r.Passed).Select(r => r.Id));
+    }
+
+    [Fact]
+    public void Labels_the_multiagent_lab02_token_usage_with_the_agent_of_each_turn()
+    {
+        TokenUsageSummary usage = Assert.IsType<TokenUsageSummary>(OutputAnalyzer.ParseTokenUsage(MultiAgentLab02SolutionOutput));
+
+        // Scenario 2 only: one report per agent for each of its two runs (scenarios 1 and 3 run without the streaming events)
+        Assert.Equal(
+            [
+                "Scenario 2 · Token Usage (ActionItemsExtractor)",
+                "Scenario 2 · Token Usage (FollowUpWriter)",
+                "Scenario 2 · Token Usage (Translator)",
+                "Scenario 2 · Token Usage (ActionItemsExtractor)",
+                "Scenario 2 · Token Usage (FollowUpWriter)",
+                "Scenario 2 · Token Usage (Translator)",
+            ],
+            usage.Reports.Select(r => r.Label));
+    }
+
+    // Standard output of the MultiAgentSystem Lab03 solution (real run).
+    private static readonly string[] MultiAgentLab03SolutionOutput =
+    [
+        "Endpoint: https://example.openai.azure.com/",
+        "Deployment: gpt-4o-mini",
+        "Customer: Hello, I received my order ORD-2087 yesterday, but the charger of the laptop is missing. I also want to return the laptop sleeve: it is the wrong color.",
+        ">>> Scenarios to run: 1, 2, 3 (the implemented ones)",
+        ">>> Running scenario 1: A concurrent workflow - fan out, then aggregate",
+        "",
+        "-------------------------------------------------------------------------------",
+        "",
+        "=== Scenario 1: A concurrent workflow - fan out, then aggregate ===",
+        "Workflow after-sales: Start -> [ReturnsSpecialist | RefundSpecialist | ShippingSpecialist] -> [Batcher/ReturnsSpecialist | Batcher/RefundSpecialist | Batcher/ShippingSpecialist] -> ConcurrentEnd",
+        "Workflow output (3 messages):",
+        "  [assistant] ShippingSpecialist: Delivery: We can ship the missing charger or provide a partial refund; please report it within 7 days. For the wrong-colored laptop sleeve, free return shipping will be arranged, and the correct item will be sent to you; please report this within 14 days.",
+        "  [assistant] RefundSpecialist: Refund: For the missing charger, you can receive a partial refund or have the item shipped to you; please report this within 7 days. For the laptop sleeve return, a refund is eligible if the product is unused, in original packaging, and with the original receipt, and processing takes 5-10 days.",
+        "  [assistant] ReturnsSpecialist: Return/exchange: You can return the laptop sleeve within 30 days as long as it is unused, in original packaging, with the original receipt, and tags attached. For the missing charger, please report the issue within 7 days, and we will arrange to ship the missing item or provide a partial refund.",
+        ">>> Running scenario 2: Follow the parallel run - time, context and cost of each agent",
+        "",
+        "-------------------------------------------------------------------------------",
+        "",
+        "=== Scenario 2: Follow the parallel run - time, context and cost of each agent ===",
+        "[0.0 s] ShippingSpecialist starts its turn",
+        "[0.0 s] RefundSpecialist starts its turn",
+        "[0.0 s] ReturnsSpecialist starts its turn",
+        "[0.6 s] ShippingSpecialist has answered",
+        "[0.8 s] RefundSpecialist has answered",
+        "[1.0 s] ReturnsSpecialist has answered",
+        "[Context] ShippingSpecialist received 1 message: user",
+        "  Turn: from 0.0 s to 0.6 s (0.6 s)",
+        "  Token Usage (ShippingSpecialist):",
+        "    Input tokens: 809",
+        "    Output tokens: 39",
+        "    Total tokens: 848",
+        "[Context] RefundSpecialist received 1 message: user",
+        "  Turn: from 0.0 s to 0.8 s (0.8 s)",
+        "  Token Usage (RefundSpecialist):",
+        "    Input tokens: 803",
+        "    Output tokens: 57",
+        "    Total tokens: 860",
+        "[Context] ReturnsSpecialist received 1 message: user",
+        "  Turn: from 0.0 s to 1.0 s (1.0 s)",
+        "  Token Usage (ReturnsSpecialist):",
+        "    Input tokens: 809",
+        "    Output tokens: 52",
+        "    Total tokens: 861",
+        "[Timing] Run: 1.0 s; the same turns one after the other: about 2.4 s",
+        "[Timing] All the agents worked at the same time: yes",
+        "Workflow output (3 messages, in the order they arrived): ShippingSpecialist, RefundSpecialist, ReturnsSpecialist",
+        ">>> Running scenario 3: Combine the answers - a custom aggregator, then one reply",
+        "",
+        "-------------------------------------------------------------------------------",
+        "",
+        "=== Scenario 3: Combine the answers - a custom aggregator, then one reply ===",
+        "Workflow after-sales-merged: Start -> [ReturnsSpecialist | RefundSpecialist | ShippingSpecialist] -> [Batcher/ReturnsSpecialist | Batcher/RefundSpecialist | Batcher/ShippingSpecialist] -> ConcurrentEnd",
+        "Workflow output (1 message):",
+        "  [user] Specialists: Answers of the specialists:",
+        "",
+        "      ReturnsSpecialist: Return/exchange: You can return the laptop sleeve within 30 days, ensuring it is unused, in its original packaging, and has the tags attached. For the missing charger, please contact us directly as it falls under a delivery issue.",
+        "",
+        "      RefundSpecialist: Refund: You can receive a partial refund for the missing charger, and you can request a refund for the laptop sleeve within 30 days if it is unused and in original packaging with the original receipt. Processing takes 5-10 days.",
+        "",
+        "      ShippingSpecialist: Delivery: We will ship the missing charger to you or provide a partial refund if you report it within 7 days. For the laptop sleeve, please follow the return policy for exchanges, but note that returns are handled by the separate department.",
+        "",
+        "⠋ Running the reply writer... [00:00]",
+        "⠙ Running the reply writer... [00:00]",
+        "⠹ Running the reply writer... [00:00]",
+        "⠸ Running the reply writer... [00:00]",
+        "⠼ Running the reply writer... [00:00]",
+        "⠴ Running the reply writer... [00:00]",
+        "⠦ Running the reply writer... [00:00]",
+        "⠧ Running the reply writer... [00:00]",
+        "⠇ Running the reply writer... [00:00]",
+        "⠏ Running the reply writer... [00:00]",
+        "⠋ Running the reply writer... [00:00]",
+        "⠙ Running the reply writer... [00:00]",
+        "⠹ Running the reply writer... [00:00]",
+        "⠸ Running the reply writer... [00:01]",
+        "⠼ Running the reply writer... [00:01]",
+        "⠴ Running the reply writer... [00:01]",
+        "⠦ Running the reply writer... [00:01]",
+        "",
+        "ReplyWriter: Hello,",
+        "",
+        "Thank you for reaching out. I'm sorry to hear that your charger is missing. Please contact us within 7 days so we can either ship the missing charger to you or issue a partial refund. Regarding the laptop sleeve, you can return it within 30 days as long as it is unused, in its original packaging, and has the tags attached. A refund will be processed within 5-10 days once we receive the item.",
+        "",
+        "If you have any further questions, feel free to ask.",
+        "",
+        "Token Usage (ReplyWriter):",
+        "  Input tokens: 286",
+        "  Output tokens: 104",
+        "  Total tokens: 390",
+    ];
+
+    // Standard output of the MultiAgentSystem Lab03 exercise as delivered (TODOs not done yet).
+    private static readonly string[] MultiAgentLab03StartOutput =
+    [
+        "Endpoint: https://example.openai.azure.com/",
+        "Deployment: gpt-4o-mini",
+        "Customer: Hello, I received my order ORD-2087 yesterday, but the charger of the laptop is missing. I also want to return the laptop sleeve: it is the wrong color.",
+        ">>> Scenarios to run: 1, 2, 3 (the implemented ones)",
+        ">>> Running scenario 1: A concurrent workflow - fan out, then aggregate",
+        "",
+        "-------------------------------------------------------------------------------",
+        "",
+        "=== Scenario 1: A concurrent workflow - fan out, then aggregate ===",
+        ">>> Running scenario 2: Follow the parallel run - time, context and cost of each agent",
+        "",
+        "-------------------------------------------------------------------------------",
+        "",
+        "=== Scenario 2: Follow the parallel run - time, context and cost of each agent ===",
+        ">>> Running scenario 3: Combine the answers - a custom aggregator, then one reply",
+        "",
+        "-------------------------------------------------------------------------------",
+        "",
+        "=== Scenario 3: Combine the answers - a custom aggregator, then one reply ===",
+    ];
+
+    [Fact]
+    public void Every_multiagent_lab03_check_passes_on_the_solution_output_and_only_config_on_the_delivered_exercise()
+    {
+        LabDefinition lab = LabCatalogTests.LoadRealCatalog().Find("multiagent-lab03")!;
+
+        Assert.All(Evaluate(lab.Expectations, MultiAgentLab03SolutionOutput), r => Assert.True(r.Passed, r.Id));
+        Assert.Equal(
+            ["config"],
+            Evaluate(lab.Expectations, MultiAgentLab03StartOutput).Where(r => r.Passed).Select(r => r.Id));
+    }
+
+    [Fact]
+    public void Multiagent_lab03_checks_fail_when_the_agents_run_one_after_the_other_and_the_answers_are_not_merged()
+    {
+        LabDefinition lab = LabCatalogTests.LoadRealCatalog().Find("multiagent-lab03")!;
+        // The specialists were chained in a sequential workflow (each one saw the previous answers, the turns did not overlap,
+        // the output kept the input), and the default aggregator was kept in scenario 3.
+        string[] output =
+        [
+            "Endpoint: https://example.openai.azure.com/",
+            ">>> Running scenario 1: A concurrent workflow - fan out, then aggregate",
+            "Workflow after-sales: ReturnsSpecialist -> RefundSpecialist -> ShippingSpecialist -> OutputMessages",
+            "Workflow output (4 messages):",
+            "  [user] (no author): Hello, I received my order ORD-2087 yesterday, but the charger of the laptop is missing.",
+            "  [assistant] ReturnsSpecialist: Return/exchange: You can return the laptop sleeve within 30 days.",
+            "  [assistant] RefundSpecialist: Refund: A partial refund is possible for the missing charger.",
+            "  [assistant] ShippingSpecialist: Delivery: We will ship the missing charger.",
+            ">>> Running scenario 2: Follow the parallel run - time, context and cost of each agent",
+            "[Context] ReturnsSpecialist received 1 message: user",
+            "[Context] RefundSpecialist received 2 messages: user, ReturnsSpecialist",
+            "[Context] ShippingSpecialist received 3 messages: user, ReturnsSpecialist, RefundSpecialist",
+            "[Timing] Run: 3.1 s; the same turns one after the other: about 3.0 s",
+            "[Timing] All the agents worked at the same time: no",
+            ">>> Running scenario 3: Combine the answers - a custom aggregator, then one reply",
+            "Workflow output (3 messages):",
+            "  [assistant] ShippingSpecialist: Delivery: We will ship the missing charger.",
+            "  [assistant] ReturnsSpecialist: Return/exchange: You can return the laptop sleeve within 30 days.",
+            "  [assistant] RefundSpecialist: Refund: A partial refund is possible for the missing charger.",
+        ];
+
+        Assert.Equal(["config"], Evaluate(lab.Expectations, output).Where(r => r.Passed).Select(r => r.Id));
+    }
+
+    [Fact]
+    public void Labels_the_multiagent_lab03_token_usage_with_the_agent_of_each_turn()
+    {
+        TokenUsageSummary usage = Assert.IsType<TokenUsageSummary>(OutputAnalyzer.ParseTokenUsage(MultiAgentLab03SolutionOutput));
+
+        // Scenario 2: one report per specialist, in the order of the trace; scenario 3: the reply writer
+        Assert.Equal(4, usage.Reports.Count);
+        Assert.All(usage.Reports.Take(3), r => Assert.Matches(@"^Scenario 2 · Token Usage \((Returns|Refund|Shipping)Specialist\)$", r.Label));
+        Assert.Equal("Scenario 3 · Token Usage (ReplyWriter)", usage.Reports[3].Label);
+    }
+
+    // Standard output of the Lab13 solution (real run): the API, then the four scenarios that call it.
+    private static readonly string[] Lab13SolutionOutput =
+    [
+        "Endpoint: https://example.openai.azure.com/",
+        "Deployment: gpt-4o-mini",
+        "info: Microsoft.Hosting.Lifetime[14]",
+        "      Now listening on: http://localhost:5200",
+        "info: Microsoft.Hosting.Lifetime[0]",
+        "      Application started. Press Ctrl+C to shut down.",
+        "info: Microsoft.Hosting.Lifetime[0]",
+        "      Hosting environment: Production",
+        "info: Microsoft.Hosting.Lifetime[0]",
+        "      Content root path: /repo/LearningLabs/AzureOpenAI/Lab13-AIAgentInAspNetCoreApi/Solution",
+        "API: POST http://localhost:5200/api/conversations/{conversationId}/messages (bearer token required)",
+        "",
+        "-------------------------------------------------------------------------------",
+        "",
+        "=== Scenario 1: Requests refused before the agent runs ===",
+        "POST /api/conversations/7045ff93-cda8-4630-834f-2b687ceac0ce/messages: Hello, which team am I in?",
+        "HTTP 401 Unauthorized (no content)",
+        "POST /api/conversations/4eaebd6c-e281-4f45-9b2e-4eeb2f140ea6/messages:",
+        "HTTP 400 BadRequest (application/problem+json)",
+        "",
+        "-------------------------------------------------------------------------------",
+        "",
+        "=== Scenario 2: Alice - a streamed answer, with a tool that knows who she is ===",
+        "POST /api/conversations/3000ec4f-8bd8-44b6-8be3-316183fb873c/messages: Which team am I in? Please also remember that my favorite meeting room is ROOM-B.",
+        "HTTP 200 OK (text/event-stream)",
+        "Agent: You are in the Engineering team, and your office is in Paris.",
+        "Server-sent events received: 14",
+        "",
+        "-------------------------------------------------------------------------------",
+        "",
+        "=== Scenario 3: Alice - the conversation continues in another request ===",
+        "POST /api/conversations/3000ec4f-8bd8-44b6-8be3-316183fb873c/messages: Which meeting room do I prefer?",
+        "HTTP 200 OK (text/event-stream)",
+        "Agent: Your favorite meeting room is ROOM-B.",
+        "Server-sent events received: 8",
+        "",
+        "-------------------------------------------------------------------------------",
+        "",
+        "=== Scenario 4: Bob - the same conversation id, another user ===",
+        "POST /api/conversations/3000ec4f-8bd8-44b6-8be3-316183fb873c/messages: Which meeting room do I prefer, and which team am I in?",
+        "HTTP 200 OK (text/event-stream)",
+        "Agent: You are in the Sales team and your office is in Lyon. Please let me know if you need anything else!",
+        "Server-sent events received: 23",
+        "info: Microsoft.Hosting.Lifetime[0]",
+        "      Application is shutting down...",
+    ];
+
+    // Standard output of the Lab13 exercise as delivered: the API starts without endpoint, every scenario gets 404.
+    private static readonly string[] Lab13StartOutput =
+    [
+        "Endpoint: https://example.openai.azure.com/",
+        "Deployment: gpt-4o-mini",
+        "info: Microsoft.Hosting.Lifetime[14]",
+        "      Now listening on: http://localhost:5200",
+        "info: Microsoft.Hosting.Lifetime[0]",
+        "      Application started. Press Ctrl+C to shut down.",
+        "info: Microsoft.Hosting.Lifetime[0]",
+        "      Hosting environment: Production",
+        "info: Microsoft.Hosting.Lifetime[0]",
+        "      Content root path: /repo/LearningLabs/AzureOpenAI/Lab13-AIAgentInAspNetCoreApi/Start",
+        "API: POST http://localhost:5200/api/conversations/{conversationId}/messages (bearer token required)",
+        "",
+        "-------------------------------------------------------------------------------",
+        "",
+        "=== Scenario 1: Requests refused before the agent runs ===",
+        "POST /api/conversations/dda94db8-ac88-4557-b517-0ddc41ea9826/messages: Hello, which team am I in?",
+        "HTTP 404 NotFound (no content)",
+        "POST /api/conversations/40931401-c386-498a-ba52-6828c2ffbeb8/messages:",
+        "HTTP 404 NotFound (no content)",
+        "",
+        "-------------------------------------------------------------------------------",
+        "",
+        "=== Scenario 2: Alice - a streamed answer, with a tool that knows who she is ===",
+        "POST /api/conversations/771f85e6-df28-4fef-9d46-1ffe7dfceb31/messages: Which team am I in? Please also remember that my favorite meeting room is ROOM-B.",
+        "HTTP 404 NotFound (no content)",
+        "",
+        "-------------------------------------------------------------------------------",
+        "",
+        "=== Scenario 3: Alice - the conversation continues in another request ===",
+        "POST /api/conversations/771f85e6-df28-4fef-9d46-1ffe7dfceb31/messages: Which meeting room do I prefer?",
+        "HTTP 404 NotFound (no content)",
+        "",
+        "-------------------------------------------------------------------------------",
+        "",
+        "=== Scenario 4: Bob - the same conversation id, another user ===",
+        "POST /api/conversations/771f85e6-df28-4fef-9d46-1ffe7dfceb31/messages: Which meeting room do I prefer, and which team am I in?",
+        "HTTP 404 NotFound (no content)",
+        "info: Microsoft.Hosting.Lifetime[0]",
+        "      Application is shutting down...",
+    ];
+
+    [Fact]
+    public void Every_lab13_check_passes_on_the_solution_output_and_only_the_startup_checks_on_the_delivered_exercise()
+    {
+        LabDefinition lab13 = LabCatalogTests.LoadRealCatalog().Find("azureopenai-lab13")!;
+
+        Assert.All(Evaluate(lab13.Expectations, Lab13SolutionOutput), r => Assert.True(r.Passed, r.Id));
+        Assert.Equal(
+            ["config", "api-started"],
+            Evaluate(lab13.Expectations, Lab13StartOutput).Where(r => r.Passed).Select(r => r.Id));
+    }
+
+    [Fact]
+    public void Lab13_checks_fail_when_the_endpoint_is_open_and_the_conversations_are_not_bound_to_the_user()
+    {
+        LabDefinition lab13 = LabCatalogTests.LoadRealCatalog().Find("azureopenai-lab13")!;
+        // No RequireAuthorization (no 401), no message check (no 400), and a storage key without the user id:
+        // Bob gets the conversation of Alice and her favorite meeting room.
+        string[] output = [.. Lab13SolutionOutput
+            .Select(line => line
+                .Replace("HTTP 401 Unauthorized (no content)", "HTTP 200 OK (text/event-stream)")
+                .Replace("HTTP 400 BadRequest (application/problem+json)", "HTTP 200 OK (text/event-stream)")
+                .Replace("Agent: You are in the Sales team and your office is in Lyon.", "Agent: Your favorite meeting room is ROOM-B, and you are in the Sales team."))];
+
+        Assert.Equal(
+            ["scenario1-unauthorized", "scenario1-validation", "scenario4-isolated"],
+            Evaluate(lab13.Expectations, output).Where(r => !r.Passed).Select(r => r.Id));
+    }
+
+    // Standard output of the Lab14 solution (real run).
+    private static readonly string[] Lab14SolutionOutput =
+    [
+        "Endpoint: https://example.openai.azure.com/",
+        "Deployment: gpt-4o-mini",
+        "Instructions of the agent under test:",
+        "You are the customer support assistant of an online store.",
+        "For any question about an order, call get_order_status with the order number, and answer with the facts it returns:",
+        "tracking number, carrier, locker code, dates.",
+        "Returns are accepted within 30 days of delivery.",
+        "Answer in at most three sentences.",
+        "",
+        "-------------------------------------------------------------------------------",
+        "",
+        "=== Scenario 1: Evaluate an agent with deterministic checks ===",
+        "Evaluator: LocalEvaluator",
+        "Q1: Where is my order ORD-1042?  (expected: TRK-48213)",
+        "  Answer: Your order ORD-1042 has been shipped on October 24, 2026, with the carrier ParcelExpress. The tracking number is TRK-48213, and it's expected to be delivered on October 27, 2026.",
+        "  [pass] non_empty: Response length 178 meets minimum 1",
+        "  [pass] contains_expected: Response contains expected output: \"TRK-48213\"",
+        "  [pass] tool_call_args_match: Tool call args match: 1/1 get_order_status: args match",
+        "  [pass] is_concise: Passed",
+        "Q2: Which carrier delivers my order ORD-1042?  (expected: ParcelExpress)",
+        "  Answer: Your order ORD-1042 is being delivered by ParcelExpress. The tracking number is TRK-48213, and it is expected to arrive on 2026-10-27.",
+        "  [pass] non_empty: Response length 134 meets minimum 1",
+        "  [pass] contains_expected: Response contains expected output: \"ParcelExpress\"",
+        "  [pass] tool_call_args_match: Tool call args match: 1/1 get_order_status: args match",
+        "  [pass] is_concise: Passed",
+        "Q3: Where can I pick up my order ORD-1043?  (expected: LCK-305)",
+        "  Answer: Your order ORD-1043 was delivered on October 22, 2026, to the parcel locker LCK-305. You can pick it up using the code 6621.",
+        "  [pass] non_empty: Response length 124 meets minimum 1",
+        "  [pass] contains_expected: Response contains expected output: \"LCK-305\"",
+        "  [pass] tool_call_args_match: Tool call args match: 1/1 get_order_status: args match",
+        "  [pass] is_concise: Passed",
+        "Q4: How many days do I have to return an item?  (expected: 30)",
+        "  Answer: You can return an item within 30 days of delivery.",
+        "  [pass] non_empty: Response length 50 meets minimum 1",
+        "  [pass] contains_expected: Response contains expected output: \"30\"",
+        "  [pass] tool_call_args_match: No expected tool calls specified.",
+        "  [pass] is_concise: Passed",
+        "Summary: 4/4 questions passed",
+        "",
+        "-------------------------------------------------------------------------------",
+        "",
+        "=== Scenario 2: Score the answers with an LLM judge ===",
+        "Judge: the chat client of the deployment (the same model as the agent)",
+        "Evaluator: CompositeEvaluator",
+        "Q1: Where is my order ORD-1042?",
+        "  Answer: Your order ORD-1042 was shipped on October 24, 2026, with the carrier ParcelExpress. The tracking number is TRK-48213, and the expected delivery date is October 27, 2026.",
+        "  [score 4] Relevance: The RESPONSE fully addresses the QUERY by providing accurate and complete information about the order's shipping status, including the carrier and expected delivery date. It does not omit any key details necessary for understanding the order's location.",
+        "  [score 4] Coherence: The RESPONSE effectively addresses the QUERY with clear and relevant information, demonstrating a logical flow and organization. It provides all necessary details about the order status, making it coherent and easy to follow.",
+        "Q2: Which carrier delivers my order ORD-1042?",
+        "  Answer: Your order ORD-1042 is being delivered by ParcelExpress. The tracking number is TRK-48213, and it was shipped on October 24, 2026, with expected delivery on October 27, 2026.",
+        "  [score 4] Coherence: The RESPONSE is coherent and directly addresses the QUERY with relevant information, making it easy to understand. It provides a logical flow of information regarding the order's delivery, which aligns well with the definition of coherence. Therefore, it deserves a high score for coherence.",
+        "  [score 4] Relevance: The RESPONSE fully addresses the QUERY by providing the name of the carrier and additional relevant details about the order, making it a complete response. Thus, it deserves a high score for relevance.",
+        "Q3: Where can I pick up my order ORD-1043?",
+        "  Answer: Your order ORD-1043 was delivered on October 22, 2026, to the parcel locker LCK-305. You can pick it up using the code 6621.",
+        "  [score 4] Relevance: The RESPONSE accurately and completely answers the QUERY by providing the location and code for picking up the order, making it a complete response.",
+        "  [score 4] Coherence: The RESPONSE is coherent and directly addresses the QUERY, providing clear and relevant information about the order pickup location and code. It is well-structured and easy to understand, which aligns with the definition of a coherent response.",
+        "Q4: How many days do I have to return an item?",
+        "  Answer: Returns are accepted within 30 days of delivery.",
+        "  [score 4] Coherence: The RESPONSE is coherent and effectively answers the QUERY with clear information about the return policy, making it easy for the reader to understand the timeframe for returns.",
+        "  [score 4] Relevance: The RESPONSE accurately and completely answers the QUERY regarding the return policy, providing the exact number of days allowed for returns. There are no inaccuracies or omissions, making it a complete response.",
+        "Summary: 4/4 questions passed",
+        "",
+        "-------------------------------------------------------------------------------",
+        "",
+        "=== Scenario 3: Catch a regression of the instructions ===",
+        "Question                                         reference                    candidate",
+        "Q1: Where is my order ORD-1042?                  pass                         FAIL (contains_expected, tool_call_args_match)",
+        "Q2: Which carrier delivers my order ORD-1042?    pass                         FAIL (contains_expected, tool_call_args_match)",
+        "Q3: Where can I pick up my order ORD-1043?       pass                         FAIL (contains_expected, tool_call_args_match)",
+        "Q4: How many days do I have to return an item?   pass                         pass",
+        "Regression detected: 3 question(s) pass with the reference instructions and fail with the candidate",
+        "Repetitions of Q1: 3/3 passed",
+    ];
+
+    // Standard output of the Lab14 exercise as delivered (TODOs not done yet).
+    private static readonly string[] Lab14StartOutput =
+    [
+        "Endpoint: https://example.openai.azure.com/",
+        "Deployment: gpt-4o-mini",
+        "Instructions of the agent under test:",
+        "You are the customer support assistant of an online store.",
+        "For any question about an order, call get_order_status with the order number, and answer with the facts it returns:",
+        "tracking number, carrier, locker code, dates.",
+        "Returns are accepted within 30 days of delivery.",
+        "Answer in at most three sentences.",
+        "",
+        "-------------------------------------------------------------------------------",
+        "",
+        "=== Scenario 1: Evaluate an agent with deterministic checks ===",
+        "",
+        "-------------------------------------------------------------------------------",
+        "",
+        "=== Scenario 2: Score the answers with an LLM judge ===",
+        "",
+        "-------------------------------------------------------------------------------",
+        "",
+        "=== Scenario 3: Catch a regression of the instructions ===",
+    ];
+
+    [Fact]
+    public void Every_lab14_check_passes_on_the_solution_output_and_only_config_on_the_delivered_exercise()
+    {
+        LabDefinition lab14 = LabCatalogTests.LoadRealCatalog().Find("azureopenai-lab14")!;
+
+        Assert.All(Evaluate(lab14.Expectations, Lab14SolutionOutput), r => Assert.True(r.Passed, r.Id));
+        Assert.Equal(["config"], Evaluate(lab14.Expectations, Lab14StartOutput).Where(r => r.Passed).Select(r => r.Id));
+    }
+
+    [Fact]
+    public void Lab14_checks_fail_when_the_tool_is_not_called_and_the_regression_is_not_reported()
+    {
+        LabDefinition lab14 = LabCatalogTests.LoadRealCatalog().Find("azureopenai-lab14")!;
+        // The agent answered without its tool (no tracking number, tool call missing), and the candidate was compared
+        // without reporting the regression.
+        string[] output =
+        [
+            "=== Scenario 1: Evaluate an agent with deterministic checks ===",
+            "Evaluator: LocalEvaluator",
+            "Q1: Where is my order ORD-1042?  (expected: TRK-48213)",
+            "  Answer: I cannot check orders.",
+            "  [pass] non_empty: Response length 22 meets minimum 1",
+            "  [fail] contains_expected: Response does not contain expected output: \"TRK-48213\"",
+            "  [fail] tool_call_args_match: Tool call args match: 0/1 get_order_status: not called",
+            "Summary: 1/4 questions passed",
+            "=== Scenario 3: Catch a regression of the instructions ===",
+            "Question                                         reference                    candidate",
+            "Q1: Where is my order ORD-1042?                  pass                         pass",
+            "No regression: every question that passed with the reference still passes",
+        ];
+
+        // Scenario 2 is absent from this output: only the checks of scenarios 1 and 3 are asserted
+        string[] concerned = ["scenario1-tool", "scenario1-expected", "scenario1-custom", "scenario1-summary", "scenario3-comparison", "scenario3-regression"];
+        Assert.Equal(
+            concerned,
+            Evaluate(lab14.Expectations, output).Where(r => concerned.Contains(r.Id) && !r.Passed).Select(r => r.Id));
+    }
+
+    // Standard output of the Lab15 solution (real run).
+    private static readonly string[] Lab15SolutionOutput =
+    [
+        "Endpoint: https://example.openai.azure.com/",
+        "Deployment: gpt-4o-mini",
+        "Skills folder: skills/ (2 skills)",
+        "",
+        "-------------------------------------------------------------------------------",
+        "",
+        "=== Scenario 1: Skills from SKILL.md files, loaded on demand ===",
+        "Skill advertised: expense-policy - The expense policy of Contoso. Use for questions about business expenses, reimbursement rules, spending limits for hotels and meals, and how to file an expense report.",
+        "Skill advertised: it-support - IT support procedures of Contoso. Use when an employee has a problem with the VPN, a password, a laptop or a phone.",
+        "User: What is the maximum I can spend on a hotel night in Paris for a business trip?",
+        "[Skill] load_skill(skillName: expense-policy) -> --- name: expense-policy description: The expense policy of Contoso. Use for questions about business expen...",
+        "[Skill] read_skill_resource(skillName: expense-policy, resourceName: references/limits.md) -> # Spending limits (2026) | Expense | Limit | |---|---| | Hotel night, Paris | 145 EUR | | Hotel night, othe...",
+        "Agent: The maximum you can spend on a hotel night in Paris for a business trip is **145 EUR**.",
+        "Skill tools run for this question: 2",
+        "User: What is the capital of Italy?",
+        "Agent: The capital of Italy is Rome.",
+        "Skill tools run for this question: 0",
+        "",
+        "-------------------------------------------------------------------------------",
+        "",
+        "=== Scenario 2: A skill defined in code, with a dynamic resource and a script ===",
+        "User: How much does it cost to ship a 2.5 kg parcel to Germany? Give me the quote id and until when it is valid.",
+        "[Skill] load_skill(skillName: shipping-quote) -> <name>shipping-quote</name> <description>Quotes the cost of shipping a parcel. Use when asked how much it c...",
+        "[Skill] read_skill_resource(skillName: shipping-quote, resourceName: rates) -> # Shipping rates Price = base price of the zone + price per kg x weight (kg). Parcels up to 30 kg. | Zone |...",
+        "[Skill] read_skill_resource(skillName: shipping-quote, resourceName: validity) -> Quotes made today are valid until 2026-11-01.",
+        "[Skill] run_skill_script(skillName: shipping-quote, scriptName: quote, arguments: {\"weightKg\":2.5,\"zone\":\"B\"}) -> {\"quoteId\":\"QT-B250-096\",\"priceEur\":\"13.75\"}",
+        "Agent: The cost to ship a 2.5 kg parcel to Germany is **€13.75**. The quote ID is **QT-B250-096**, and it is valid until **November 1, 2026**.",
+        "",
+        "-------------------------------------------------------------------------------",
+        "",
+        "=== Scenario 3: Approve the skill tools ===",
+        "Without auto-approval, approval requested for load_skill(skillName: shipping-quote)",
+        "User: How much does it cost to ship a 2.5 kg parcel to Germany? Give me the quote id.",
+        "[Skill] load_skill(skillName: shipping-quote) -> <name>shipping-quote</name> <description>Quotes the cost of shipping a parcel. Use when asked how much it c...",
+        "[Skill] read_skill_resource(skillName: shipping-quote, resourceName: rates) -> # Shipping rates Price = base price of the zone + price per kg x weight (kg). Parcels up to 30 kg. | Zone |...",
+        "[Skill] read_skill_resource(skillName: shipping-quote, resourceName: validity) -> Quotes made today are valid until 2026-11-01.",
+        "Approval requested for run_skill_script(skillName: shipping-quote, scriptName: quote, arguments: {\"weightKg\":2.5,\"zone\":\"B\"})",
+        "Policy decision: approved - Parcel of 2.5 kg: within the 30 kg limit.",
+        "[Skill] run_skill_script(skillName: shipping-quote, scriptName: quote, arguments: {\"weightKg\":2.5,\"zone\":\"B\"}) -> {\"quoteId\":\"QT-B250-096\",\"priceEur\":\"13.75\"}",
+        "Agent: The cost to ship a 2.5 kg parcel to Germany is **13.75 EUR**, and the quote ID is **QT-B250-096**.",
+        "User: How much does it cost to ship a 120 kg parcel to Germany? Give me the quote id.",
+        "[Skill] load_skill(skillName: shipping-quote) -> <name>shipping-quote</name> <description>Quotes the cost of shipping a parcel. Use when asked how much it c...",
+        "[Skill] read_skill_resource(skillName: shipping-quote, resourceName: rates) -> # Shipping rates Price = base price of the zone + price per kg x weight (kg). Parcels up to 30 kg. | Zone |...",
+        "[Skill] read_skill_resource(skillName: shipping-quote, resourceName: validity) -> Quotes made today are valid until 2026-11-01.",
+        "Approval requested for run_skill_script(skillName: shipping-quote, scriptName: quote, arguments: {\"weightKg\":120,\"zone\":\"B\"})",
+        "Policy decision: rejected - Parcel of 120 kg: over the 30 kg limit, a freight quote is needed from the logistics team.",
+        "Agent: The parcel of 120 kg exceeds the 30 kg limit for standard shipping quotes. A freight quote is required for such heavy parcels, and you'll need to contact the logistics team to obtain that information.",
+    ];
+
+    // Standard output of the Lab15 exercise as delivered (TODOs not done yet).
+    private static readonly string[] Lab15StartOutput =
+    [
+        "Endpoint: https://example.openai.azure.com/",
+        "Deployment: gpt-4o-mini",
+        "Skills folder: skills/ (2 skills)",
+        "",
+        "-------------------------------------------------------------------------------",
+        "",
+        "=== Scenario 1: Skills from SKILL.md files, loaded on demand ===",
+        "",
+        "-------------------------------------------------------------------------------",
+        "",
+        "=== Scenario 2: A skill defined in code, with a dynamic resource and a script ===",
+        "",
+        "-------------------------------------------------------------------------------",
+        "",
+        "=== Scenario 3: Approve the skill tools ===",
+    ];
+
+    [Fact]
+    public void Every_lab15_check_passes_on_the_solution_output_and_only_config_on_the_delivered_exercise()
+    {
+        LabDefinition lab15 = LabCatalogTests.LoadRealCatalog().Find("azureopenai-lab15")!;
+
+        Assert.All(Evaluate(lab15.Expectations, Lab15SolutionOutput), r => Assert.True(r.Passed, r.Id));
+        Assert.Equal(["config"], Evaluate(lab15.Expectations, Lab15StartOutput).Where(r => r.Passed).Select(r => r.Id));
+    }
+
+    [Fact]
+    public void Lab15_checks_fail_when_the_skill_is_not_used_or_a_rejected_script_still_runs()
+    {
+        LabDefinition lab15 = LabCatalogTests.LoadRealCatalog().Find("azureopenai-lab15")!;
+        // Scenario 1: the agent guessed the limit without loading the skill. Scenario 3: the script ran after its rejection.
+        string[] output = [.. Lab15SolutionOutput
+            .Where(line => !line.StartsWith("[Skill] load_skill(skillName: expense-policy)", StringComparison.Ordinal)
+                && !line.StartsWith("[Skill] read_skill_resource(skillName: expense-policy", StringComparison.Ordinal))
+            .Select(line => line.StartsWith("Agent: The maximum you can spend", StringComparison.Ordinal) ? "Agent: Usually around 150 EUR per night." : line)
+            .SelectMany(line => line.StartsWith("Policy decision: rejected - Parcel of 120 kg", StringComparison.Ordinal)
+                ? new[] { line, "[Skill] run_skill_script(skillName: shipping-quote, scriptName: quote, arguments: {\"weightKg\":120,\"zone\":\"B\"}) -> {\"quoteId\":\"QT-B12000-543\",\"priceEur\":\"213.50\"}" }
+                : new[] { line })];
+
+        Assert.Equal(
+            ["scenario1-load", "scenario1-resource", "scenario3-rejected"],
+            Evaluate(lab15.Expectations, output).Where(r => !r.Passed).Select(r => r.Id));
+    }
+
+
+    // Standard output of the Lab16 server solution (real run: it starts OrdersApi, then tests its MCP server as a client, without any model).
+    private static readonly string[] Lab16ServerSolutionOutput =
+    [
+        "REST microservice: OrdersApi started as a separate process (PID 12345) at http://localhost:5300",
+        "MCP server listening on http://localhost:5310/mcp (Streamable HTTP, stateless, bearer token required)",
+        ">>> Scenarios to run: 1, 2, 3, 4 (the implemented ones)",
+        ">>> Running scenario 1: Discover and call the tools exposed from the REST API",
+        "",
+        "-",
+        "",
+        "=== Scenario 1: Discover and call the tools exposed from the REST API ===",
+        "Connected to Orders MCP server 1.0.0 as sales-agent",
+        "MCP tools available (4): get_order, get_product, place_order, search_products",
+        "- get_order (Get an order) [read-only, closed world]",
+        "  Description: Gets an order by its id: status (Pending, Shipped, Cancelled), lines, total in euros and date.",
+        "  Input schema: {\"type\":\"object\",\"properties\":{\"orderId\":{\"description\":\"Id of the order, e.g. ORD-1002.\",\"type\":\"string\"}},\"required\":[\"orderId\"]}",
+        "  Output schema: {\"description\":\"An order of a customer.\",\"type\":\"object\",\"properties\":{\"orderId\":{\"description\":\"Id of the order, e.g. ORD-1002.\",\"type\":\"string\"},\"customerId\":{\"description\":\"Id of the customer, e.g. CUST-042.\",\"type\":\"...",
+        "- get_product (Get a product) [read-only, closed world]",
+        "  Description: Gets one product of the catalog by its SKU: name, category, price in euros and stock.",
+        "  Input schema: {\"type\":\"object\",\"properties\":{\"sku\":{\"description\":\"SKU of the product, e.g. KB-100.\",\"type\":\"string\"}},\"required\":[\"sku\"]}",
+        "  Output schema: {\"description\":\"A product of the catalog.\",\"type\":\"object\",\"properties\":{\"sku\":{\"description\":\"Stock keeping unit, the id of the product, e.g. KB-100.\",\"type\":\"string\"},\"name\":{\"description\":\"Name of the product.\",\"type\"...",
+        "- place_order (Place an order) [closed world]",
+        "  Description: Places an order for a customer. The stock is reserved and the order is created with the status Pending. Fails if a product does not exist or if there is not enough stock; the error says how many units are left.",
+        "  Input schema: {\"type\":\"object\",\"properties\":{\"customerId\":{\"description\":\"Id of the customer, e.g. CUST-042.\",\"type\":\"string\"},\"lines\":{\"description\":\"The lines of the order: 1 to 10 lines, each with a SKU and a quantity from 1 to 50.\",\"type\":\"array\",\"items\":{\"description\":\"A line of a new order.\",\"type\":\"object\",\"properties\":{\"sku\":{\"description\":\"SKU of the product, e.g. KB-100.\",\"type\":\"string\"},\"quantity\":{\"description\":\"Quantity, from 1 to 50.\",\"type\":\"integer\"}},\"required\":[\"sku\",\"quantity\"]}}},\"required\":[\"customerId\",\"lines\"]}",
+        "  Output schema: {\"description\":\"An order of a customer.\",\"type\":\"object\",\"properties\":{\"orderId\":{\"description\":\"Id of the order, e.g. ORD-1002.\",\"type\":\"string\"},\"customerId\":{\"description\":\"Id of the customer, e.g. CUST-042.\",\"type\":\"...",
+        "- search_products (Search the catalog) [read-only, closed world]",
+        "  Description: Searches the products of the online shop catalog, with their price in euros and their stock. Use it to find products by category and maximum price, or to check what is in stock.",
+        "  Input schema: {\"type\":\"object\",\"properties\":{\"category\":{\"description\":\"Category to filter on: keyboards, mice, monitors or headsets. Omit it to search every category.\",\"type\":[\"string\",\"null\"],\"default\":null},\"maxPrice\":{\"description\":\"Maximum unit price in euros, VAT included. Omit it for no limit.\",\"type\":[\"number\",\"null\"],\"default\":null}}}",
+        "  Output schema: {\"description\":\"The products found.\",\"type\":\"object\",\"properties\":{\"count\":{\"description\":\"Number of products found.\",\"type\":\"integer\"},\"products\":{\"description\":\"The products, sorted by SKU.\",\"type\":\"array\",\"items\":{\"de...",
+        "search_products(category: keyboards, maxPrice: 100) -> result:",
+        "  Structured content: {\"count\":2,\"products\":[{\"sku\":\"KB-100\",\"name\":\"Compact mechanical keyboard\",\"category\":\"keyboards\",\"price\":89.90,\"stock\":25},{\"sku\":\"KB-300\",\"name\":\"Low-profile office keyboard\",\"category\":\"keyboards\",\"price\":39.90,\"stock\":0}]}",
+        "get_order(orderId: ORD-1002) -> result:",
+        "  Structured content: {\"orderId\":\"ORD-1002\",\"customerId\":\"CUST-042\",\"status\":\"Pending\",\"lines\":[{\"sku\":\"KB-100\",\"name\":\"Compact mechanical keyboard\",\"quantity\":1,\"unitPrice\":89.90},{\"sku\":\"MS-100\",\"name\":\"Wireless silent mouse\",\"quantity\":1,\"unitPrice\":24.90}],\"total\":114.80,\"createdAt\":\"2026-11-06T14:02:00\\u002B00:00\",\"placedBy\":\"backoffice\"}",
+        ">>> Running scenario 2: Pass the REST errors to the MCP client",
+        "",
+        "-",
+        "",
+        "=== Scenario 2: Pass the REST errors to the MCP client ===",
+        "warn: RestApiMCPServer.Tools[0] Tool get_order failed: OrdersApi answered 404: Order not found Order ORD-9999 does not exist.",
+        "get_order(orderId: ORD-9999) -> tool error (isError: true):",
+        "  Order ORD-9999 does not exist.",
+        "warn: RestApiMCPServer.Tools[0] Tool place_order failed: OrdersApi answered 409: Not enough stock Only 8 unit(s) of KB-200 (Wireless ergonomic keyboard) left in stock, 30 requested.",
+        "place_order(CUST-042, KB-200 x 30) -> tool error (isError: true):",
+        "  Only 8 unit(s) of KB-200 (Wireless ergonomic keyboard) left in stock, 30 requested.",
+        "warn: RestApiMCPServer.Tools[0] Tool get_order failed: OrdersApi answered 500: An error occurred while processing your request. ",
+        "get_order(orderId: ORD-0500) -> tool error (isError: true):",
+        "  The orders service is unavailable. Try again in a few minutes.",
+        "  Internal details sent to the client: no",
+        "get_product(sku: ../admin) -> tool error (isError: true):",
+        "  '../admin' is not a valid SKU. A SKU looks like KB-100: two letters, a dash and three digits.",
+        ">>> Running scenario 3: Protect the tools with a token, scopes and per-tool authorization",
+        "",
+        "-",
+        "",
+        "=== Scenario 3: Protect the tools with a token, scopes and per-tool authorization ===",
+        "Without a token: 401 Unauthorized",
+        "  WWW-Authenticate: Bearer resource_metadata=\"http://localhost:5310/.well-known/oauth-protected-resource/mcp\"",
+        "Protected Resource Metadata (http://localhost:5310/.well-known/oauth-protected-resource/mcp):",
+        "  resource: http://localhost:5310/mcp, authorization_servers: [\"http://localhost:5310\"], scopes_supported: [\"orders.read\",\"orders.write\"]",
+        "reporting-agent (scope orders.read):",
+        "MCP tools available (3): get_order, get_product, search_products",
+        "place_order as reporting-agent -> refused: Request failed (remote): Access forbidden: This tool requires authorization.",
+        "sales-agent (scopes orders.read orders.write):",
+        "MCP tools available (4): get_order, get_product, place_order, search_products",
+        "place_order(CUST-042, MS-100 x 2) as sales-agent -> result:",
+        "  Structured content: {\"orderId\":\"ORD-1004\",\"customerId\":\"CUST-042\",\"status\":\"Pending\",\"lines\":[{\"sku\":\"MS-100\",\"name\":\"Wireless silent mouse\",\"quantity\":2,\"unitPrice\":24.90}],\"total\":49.80,\"createdAt\":\"2026-11-08T11:41:33.841965\\u002B00:00\",\"placedBy\":\"orders-mcp-server on behalf of sales-agent\"}",
+        ">>> Running scenario 4: Run the MCP server as an independent service",
+        "",
+        "-",
+        "",
+        "=== Scenario 4: Run the MCP server as an independent service ===",
+        "GET /health: 200 {\"status\":\"Healthy\",\"service\":\"orders-mcp-server\",\"checks\":{\"orders-api\":{\"status\":\"Healthy\",\"Description\":\"OrdersApi answers.\"}}}",
+        "Two independent connections answered: yes (MCP session id: none)",
+        "Deployment settings (environment variables):",
+        "  OrdersMcpServer__BaseUrl=http://localhost:5310",
+        "  OrdersApi__BaseUrl=http://localhost:5300",
+        "  OrdersApi__ApiKey=*** (a secret: vault or secret of the container platform)",
+        "  Containers: docker compose -f LearningLabs/AzureOpenAI/Lab16_RestApiMCPServer/deploy/docker-compose.yml up --build",
+    ];
+
+    // Standard output of the Lab16 client solution (real run, companion MCP server on port 5371).
+    private static readonly string[] Lab16ClientSolutionOutput =
+    [
+        "Endpoint: https://example.openai.azure.com/",
+        "Deployment: gpt-4o-mini",
+        "Remote MCP server: http://localhost:5371/mcp",
+        ">>> Scenarios to run: 1, 2, 3 (the implemented ones)",
+        ">>> Running scenario 1: Give the tools of the remote MCP server to an agent",
+        "",
+        "-",
+        "",
+        "=== Scenario 1: Give the tools of the remote MCP server to an agent ===",
+        "MCP tools for sales-agent (4): get_order, get_product, place_order, search_products",
+        "User: Which keyboards cost less than 100 euros and are in stock? And what is the status of the order ORD-1002?",
+        "",
+        "",
+        "Tool called: search_products(category: \"keyboards\", maxPrice: 100)",
+        "  Result: {\"count\":2,\"products\":[{\"sku\":\"KB-100\",\"name\":\"Compact mechanical keyboard\",\"category\":\"keyboards\",\"price\":89.90,\"stock\":25},{\"sku\":\"KB-300\",\"name\":\"Low-profile office keyboard\",\"category\":\"keyboards\",\"price\":39.90,\"stock\":0}]}",
+        "Tool called: get_order(orderId: \"ORD-1002\")",
+        "  Result: {\"orderId\":\"ORD-1002\",\"customerId\":\"CUST-042\",\"status\":\"Pending\",\"lines\":[{\"sku\":\"KB-100\",\"name\":\"Compact mechanical keyboard\",\"quantity\":1,\"unitPrice\":89.90},{\"sku\":\"MS-100\",\"name\":\"Wireless silent mouse\",\"quantity\":1,\"unitPrice\":24.90}],\"total\":114.80,\"createdAt\":\"2026-11-06T14:02:00+00:00\",\"place...",
+        "Agent answer:",
+        "The keyboard that costs less than 100 euros and is in stock is:",
+        "",
+        "- **Compact mechanical keyboard**",
+        "  - SKU: KB-100",
+        "  - Price: 89.90 euros",
+        "  - Stock: 25 units available",
+        "",
+        "The order with ID **ORD-1002** has the following status:",
+        "- **Status:** Pending",
+        "- **Customer ID:** CUST-042",
+        "- **Order Lines:**",
+        "  - 1 x Compact mechanical keyboard (SKU: KB-100) at 89.90 euros",
+        "  - 1 x Wireless silent mouse (SKU: MS-100) at 24.90 euros",
+        "- **Total:** 114.80 euros",
+        "- **Created At:** November 6, 2026",
+        "- **Placed By:** Backoffice",
+        "",
+        "-",
+        "",
+        "Token Usage:",
+        "  Input tokens: 1532",
+        "  Output tokens: 214",
+        "  Total tokens: 1746",
+        ">>> Running scenario 2: Let the agent place an order and handle the errors of the REST API",
+        "",
+        "-",
+        "",
+        "=== Scenario 2: Let the agent place an order and handle the errors of the REST API ===",
+        "User: Place an order of 10 units of KB-200 for the customer CUST-042 directly, without checking the stock first. If the order fails because there is not enough stock, order all the units that are left. Then give me the order id, the quantity ordered and the total.",
+        "",
+        "",
+        "Tool called: place_order(customerId: \"CUST-042\", lines: [{\"sku\":\"KB-200\",\"quantity\":10}])",
+        "  Result: Only 8 unit(s) of KB-200 (Wireless ergonomic keyboard) left in stock, 10 requested. (tool error)",
+        "Tool called: place_order(customerId: \"CUST-042\", lines: [{\"sku\":\"KB-200\",\"quantity\":8}])",
+        "  Result: {\"orderId\":\"ORD-1004\",\"customerId\":\"CUST-042\",\"status\":\"Pending\",\"lines\":[{\"sku\":\"KB-200\",\"name\":\"Wireless ergonomic keyboard\",\"quantity\":8,\"unitPrice\":129.00}],\"total\":1032.00,\"createdAt\":\"2026-11-08T11:41:46.345357+00:00\",\"placedBy\":\"orders-mcp-server on behalf of sales-agent\"}",
+        "Agent answer:",
+        "The order has been successfully placed. Here are the details:",
+        "",
+        "- **Order ID:** ORD-1004",
+        "- **Quantity Ordered:** 8 units of the Wireless ergonomic keyboard (KB-200)",
+        "- **Total Amount:** 1032.00 euros",
+        "",
+        "The order status is currently Pending.",
+        "User: What is the status of the order ORD-9999?",
+        "",
+        "",
+        "Tool called: get_order(orderId: \"ORD-9999\")",
+        "  Result: Order ORD-9999 does not exist. (tool error)",
+        "Agent answer:",
+        "The order ORD-9999 does not exist.",
+        "",
+        "-",
+        "",
+        "Token Usage:",
+        "  Input tokens: 1048",
+        "  Output tokens: 29",
+        "  Total tokens: 1077",
+        ">>> Running scenario 3: A read-only consumer cannot order, whatever its agent decides",
+        "",
+        "-",
+        "",
+        "=== Scenario 3: A read-only consumer cannot order, whatever its agent decides ===",
+        "MCP tools for reporting-agent (3): get_order, get_product, search_products",
+        "User: How many 27-inch monitors (MN-270) are in stock? Also, place an order of one MN-270 for the customer CUST-077.",
+        "",
+        "",
+        "Tool called: get_product(sku: \"MN-270\")",
+        "  Result: {\"sku\":\"MN-270\",\"name\":\"27-inch QHD monitor\",\"category\":\"monitors\",\"price\":299.00,\"stock\":12}",
+        "Tool called: get_order(orderId: \"CUST-077\")",
+        "  Result: 'CUST-077' is not a valid order id. An order id looks like ORD-1002. (tool error)",
+        "Agent answer:",
+        "There are **12** units of the 27-inch QHD monitor (SKU: MN-270) in stock.",
+        "",
+        "However, I cannot place an order as my access does not allow it. You will need to do that through the appropriate channels.",
+        "Direct call of place_order as reporting-agent -> refused by the server: Request failed (remote): Access forbidden: This tool requires authorization.",
+        "",
+        "-",
+        "",
+        "Token Usage:",
+        "  Input tokens: 941",
+        "  Output tokens: 101",
+        "  Total tokens: 1042",
+    ];
+
+    private static readonly Dictionary<string, string[]> SolutionOutputs = new()
+    {
+        ["azureopenai-lab01"] = Lab01SolutionOutput,
+        ["azureopenai-lab02"] = Lab02SolutionOutput,
+        ["azureopenai-lab03"] = Lab03SolutionOutput,
+        ["azureopenai-lab04"] = Lab04SolutionOutput,
+        ["azureopenai-lab05"] = Lab05SolutionOutput,
+        ["azureopenai-lab06-client"] = Lab06ClientSolutionOutput,
+        ["azureopenai-lab06-server"] = Lab06ServerSolutionOutput,
+        ["azureopenai-lab07"] = Lab07SolutionOutput,
+        ["azureopenai-lab08"] = Lab08SolutionOutput,
+        ["azureopenai-lab09"] = Lab09SolutionOutput,
+        ["azureopenai-lab10"] = Lab10SolutionOutput,
+        ["azureopenai-lab11"] = Lab11SolutionOutput,
+        ["azureopenai-lab12"] = Lab12SolutionOutput,
+        ["azureopenai-lab13"] = Lab13SolutionOutput,
+        ["azureopenai-lab14"] = Lab14SolutionOutput,
+        ["azureopenai-lab15"] = Lab15SolutionOutput,
+        ["azureopenai-lab16-server"] = Lab16ServerSolutionOutput,
+        ["azureopenai-lab16-client"] = Lab16ClientSolutionOutput,
+        ["multiagent-lab01"] = MultiAgentLab01SolutionOutput,
+        ["multiagent-lab02"] = MultiAgentLab02SolutionOutput,
+        ["multiagent-lab03"] = MultiAgentLab03SolutionOutput,
+    };
+
+    public static TheoryData<string> CatalogLabs() => [.. LabCatalogTests.LoadRealCatalog().Labs.Select(lab => lab.Id)];
+
+    /// <summary>
+    /// The checks judge what a scenario does, not how it presents it: they still pass when the solution prints none of the texts written
+    /// in its scenario blocks (headers, titles, labels, questions, separators), as when a learner writes them differently or not at all.
+    /// Only the token usage lines keep their wording: "Input tokens: N" is the convention the dashboard reads.
+    /// </summary>
+    [Theory]
+    [MemberData(nameof(CatalogLabs))]
+    public void Every_check_passes_on_the_solution_output_without_its_presentation(string labId)
+    {
+        LabCatalog catalog = LabCatalogTests.LoadRealCatalog();
+        LabDefinition lab = catalog.Find(labId)!;
+        string[] output = WithoutPresentation(WithMarkers(SolutionOutputs[labId]), File.ReadAllText(catalog.ProgramPath(lab, RunTarget.Solution)));
+
+        Assert.All(OutputAnalyzer.EvaluateExpectations(lab.Expectations, output), r => Assert.True(r.Passed, r.Id));
+    }
+
+    /// <summary>
+    /// The output without the texts the scenario blocks of <paramref name="program"/> write themselves: the fixed parts of the string
+    /// literals of their Write calls that read as text (a space or a final colon), removed from every line printed in a scenario,
+    /// then the lines left empty. Data the blocks only pass on (a prompt, a tool description) stays: provided code prints it.
+    /// </summary>
+    internal static string[] WithoutPresentation(IReadOnlyList<string> output, string program)
+    {
+        IEnumerable<string> writeCalls = System.Text.RegularExpressions.Regex.Matches(program, @"(?ms)^\s*#region Scenario \d+:.*?^\s*#endregion\b")
+            .SelectMany(region => region.Value.Split('\n'))
+            .Where(line => !line.TrimStart().StartsWith("//", StringComparison.Ordinal))
+            .Select(line => System.Text.RegularExpressions.Regex.Match(line, @"\bWrite\w*\((.*)$"))
+            .Where(call => call.Success)
+            .Select(call => call.Groups[1].Value);
+        string[] texts = writeCalls
+            .SelectMany(call => System.Text.RegularExpressions.Regex.Matches(call, @"\$?@?""((?:[^""\\]|\\.)*)""").Select(m => m.Groups[1].Value))
+            .SelectMany(literal => System.Text.RegularExpressions.Regex.Split(literal, @"\{[^{}]*\}|\\n"))
+            .Select(text => text.Replace("\\\"", "\"").Trim())
+            .Where(text => text.Length >= 4 && text.Any(char.IsLetter) && (text.Contains(' ') || text.EndsWith(':')))
+            .Where(text => !System.Text.RegularExpressions.Regex.IsMatch(text, @"(?i)\btokens?\b|token usage"))
+            .Distinct()
+            .OrderByDescending(text => text.Length)
+            .ToArray();
+
+        List<string> result = [];
+        bool inScenario = false;
+        bool companion = false;
+        foreach (string line in output)
+        {
+            inScenario |= CommonUtilities.LabScenarios.TryParseMarker(line, out _);
+            // The output of a companion client follows the lab's, from its own configuration line: the reference solution, kept as is.
+            companion |= inScenario && line.StartsWith("Endpoint:", StringComparison.Ordinal);
+            if (!inScenario || companion || CommonUtilities.LabScenarios.IsSelectionLine(line))
+            {
+                result.Add(line);
+                continue;
+            }
+
+            string kept = texts.Aggregate(line, (current, text) => current.Replace(text, "", StringComparison.Ordinal));
+            if (!string.IsNullOrWhiteSpace(kept) && !System.Text.RegularExpressions.Regex.IsMatch(kept, @"^\s*-{10,}\s*$"))
+            {
+                result.Add(kept);
+            }
+        }
+
+        return [.. result];
+    }
+}

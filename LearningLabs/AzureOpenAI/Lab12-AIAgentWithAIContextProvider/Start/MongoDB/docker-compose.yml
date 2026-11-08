@@ -1,0 +1,18 @@
+# Local MongoDB that stores the user memories of the lab.
+# Development only: no authentication, reachable from this computer only (127.0.0.1).
+# Port 27018 on the host, so that it can run next to the MongoDB of Lab 05 (27017).
+# The explicit project name keeps this container and its volume apart from any other "MongoDB" compose project.
+name: lab12-aiagent-memory
+
+services:
+  mongodb:
+    image: mongo:8.0
+    container_name: lab12-mongodb
+    restart: unless-stopped
+    ports:
+      - "127.0.0.1:27018:27017"
+    volumes:
+      - mongodb_data:/data/db
+
+volumes:
+  mongodb_data:
