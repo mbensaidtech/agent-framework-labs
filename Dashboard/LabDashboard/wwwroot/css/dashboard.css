@@ -383,20 +383,9 @@ details.fig:not([open]) > summary { border-bottom: 0; }
 .model-card-sub { margin: 1px 0 0; font-size: 12px; color: var(--txt3); }
 .model-card-status { display: inline-flex; align-items: center; gap: 7px; font-size: 11.5px; color: var(--txt2); }
 .model-card-status .status-dot { flex: none; }
-.model-mode { display: flex; width: 100%; margin-top: 14px; }
-.model-mode button { flex: 1 1 0; min-width: 0; align-items: center; justify-content: center; padding: 8px 10px; line-height: 1.3; text-align: center; white-space: normal; }
-.model-mode button[aria-pressed="true"] { color: var(--txt); background: var(--accbg); box-shadow: inset 0 -2px 0 var(--acc); }
-.model-mode button[aria-pressed="true"] .ico { color: var(--acc); }
-.model-mode button:focus-visible { outline-offset: -2px; }
-[aria-disabled="true"].btn, .seg button[aria-disabled="true"] { opacity: .55; cursor: progress; }
+[aria-disabled="true"].btn, .seg button[aria-disabled="true"] { opacity: .55; cursor: not-allowed; }
 .model-notice { display: flex; align-items: center; flex-wrap: wrap; gap: 8px 12px; margin: 12px 0 0; }
 .notice-warn { color: var(--warn); background: var(--warnbg); border-color: color-mix(in srgb, var(--warn) 35%, var(--line)); }
-.model-trainer { margin-top: 12px; padding: 12px 14px; border: 1px dashed var(--line2); border-radius: var(--radius-sm); background: var(--bg); }
-.model-trainer-empty { margin: 0; font-size: 12.5px; color: var(--txt2); }
-.model-summary { display: grid; grid-template-columns: max-content minmax(0, 1fr); gap: 6px 16px; margin: 0; font-size: 12.5px; }
-.model-summary div { display: contents; }
-.model-summary dt { color: var(--txt3); }
-.model-summary dd { margin: 0; color: var(--txt); font-family: var(--mono); font-size: 12px; overflow-wrap: anywhere; }
 .model-overrides { list-style: none; margin: 10px 0 0; padding: 0; display: flex; flex-direction: column; gap: 4px; font-size: 12px; color: var(--txt2); }
 .model-overrides li { display: flex; align-items: flex-start; gap: 7px; overflow-wrap: anywhere; }
 .model-overrides .ico { margin-top: 3px; color: var(--acc); }
@@ -408,8 +397,6 @@ details.fig:not([open]) > summary { border-bottom: 0; }
 .trainer-status { display: flex; align-items: center; gap: 8px; margin: 8px 0 0; font-size: 12.5px; color: var(--txt2); }
 .trainer-status:empty { display: none; }
 .trainer-bar .model-notice { margin-top: 10px; }
-.trainer-actions { display: flex; align-items: center; flex-wrap: wrap; gap: 8px 12px; margin-top: 12px; }
-.trainer-actions .field-hint { margin: 0; }
 .trainer-code { margin-top: 12px; padding-top: 12px; border-top: 1px solid var(--line); }
 .trainer-code label { display: block; margin-bottom: 6px; font-size: 12.5px; font-weight: 600; color: var(--txt); }
 .trainer-code-row { display: flex; flex-wrap: wrap; gap: 8px; }
@@ -417,14 +404,37 @@ details.fig:not([open]) > summary { border-bottom: 0; }
 .trainer-code-row input:focus-visible { outline: 2px solid var(--acc); outline-offset: 0; border-color: var(--acc); }
 .trainer-code-row input[aria-invalid="true"] { border-color: var(--bad); }
 .trainer-code .field-hint, .trainer-code .field-error { margin: 6px 0 0; }
-.model-offer { margin-top: 12px; padding: 10px 12px; border: 1px solid var(--line2); border-radius: var(--radius-sm); background: var(--bg); font-size: 12.5px; color: var(--txt2); }
-.model-offer-head { display: flex; align-items: center; flex-wrap: wrap; gap: 6px 10px; }
-.model-offer-head b { color: var(--txt); font-weight: 600; overflow-wrap: anywhere; }
-.model-offer-line { margin: 4px 0 0; font-family: var(--mono); font-size: 12px; color: var(--txt2); overflow-wrap: anywhere; }
-.model-offer-note { margin: 6px 0 0; }
-.model-offer-note.warn { color: var(--warn); }
-.model-offer-tick { display: flex; align-items: center; gap: 8px; margin-top: 8px; font-weight: 600; color: var(--txt); cursor: pointer; }
-.model-offer-tick input { margin: 0; accent-color: var(--acc); }
+/* AI models: what the labs use now, the choice of the configuration, the trainer's offers and the confirmation. */
+.models-usage { margin: 16px 0 0; padding: 12px 14px; border: 1px solid var(--line); border-radius: var(--radius); background: var(--panel2); }
+.models-usage h4 { margin: 0 0 10px; font-size: 11px; font-weight: 600; letter-spacing: .06em; text-transform: uppercase; color: var(--txt3); }
+.models-usage-list { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 10px; }
+.models-usage-row { display: flex; align-items: flex-start; gap: 12px; min-width: 0; }
+.models-usage-row + .models-usage-row { padding-top: 10px; border-top: 1px solid var(--line); }
+.models-usage-text { flex: 1 1 auto; min-width: 0; }
+.models-usage-line { display: flex; align-items: center; flex-wrap: wrap; gap: 6px 10px; }
+.models-usage-line b { font-size: 13.5px; font-weight: 600; color: var(--txt); }
+.models-usage-detail { margin: 3px 0 0; font: 12px var(--mono); color: var(--txt2); overflow-wrap: anywhere; }
+.models-usage-detail.missing { font: 12.5px var(--sans); color: var(--txt3); }
+.models-usage .model-overrides { margin-top: 6px; }
+.models-usage .model-notice { margin: 8px 0 0; }
+.models-source { min-width: 0; margin: 18px 0 0; padding: 0; border: 0; }
+.models-source legend { padding: 0; margin-bottom: 8px; font-size: 13px; font-weight: 600; color: var(--txt); }
+.choice.choice-lg { padding: 12px 14px; }
+.choice.choice-lg b { display: flex; align-items: center; gap: 7px; font-size: 13.5px; }
+.choice.choice-lg b .ico { flex: none; color: var(--acc); }
+.choice.choice-lg small { margin-top: 4px; font-size: 12px; line-height: 1.45; }
+.choice:has(input:disabled) { cursor: progress; opacity: .7; }
+.trainer-offers { list-style: none; margin: 12px 0 0; padding: 0; display: flex; flex-direction: column; gap: 8px; }
+.trainer-offer { padding: 9px 12px; border: 1px solid var(--line2); border-radius: var(--radius-sm); background: var(--bg); font-size: 12.5px; color: var(--txt2); }
+.trainer-offer-head { display: flex; align-items: center; flex-wrap: wrap; gap: 6px 10px; }
+.trainer-offer-head b { color: var(--txt); font-weight: 600; }
+.trainer-offer-line { margin: 4px 0 0; font: 12px var(--mono); color: var(--txt2); overflow-wrap: anywhere; }
+.trainer-offer-note { margin: 5px 0 0; }
+.trainer-offer-note.warn { color: var(--warn); }
+.trainer-done { display: flex; align-items: center; gap: 8px; margin: 12px 0 0; padding: 9px 12px; font-size: 12.5px; color: var(--ok); background: var(--okbg); border: 1px solid color-mix(in srgb, var(--ok) 30%, var(--line)); border-radius: var(--radius-sm); }
+.trainer-done .ico { flex: none; }
+
+@media (max-width: 560px) { .models-source .choice-row { grid-template-columns: minmax(0, 1fr); } }
 .model-custom { margin-top: 4px; }
 .model-card .field { margin: 14px 0 0; }
 .model-card .field-label-row { flex-wrap: wrap; row-gap: 4px; }

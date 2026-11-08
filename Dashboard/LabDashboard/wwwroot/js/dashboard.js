@@ -39,10 +39,10 @@ const state = {
   // Scenarios whose validation by hand is being saved (their button is disabled meanwhile).
   validating: new Set(),
   // AI models settings: status from the server, a refused switch per kind ("trainer" | "custom": what it opened), kinds with a request in flight.
-  models: null, modelAsk: { chat: null, embedding: null }, modelBusy: new Set(), settingsTab: "models",
+  models: null, modelsSource: "trainer", modelAsk: { chat: null, embedding: null }, modelBusy: new Set(), settingsTab: "models",
   // The trainer's configurations: the overview (GET /trainer-models), the unlock under way on the server, the kinds ticked for Unlock,
   // the error of the last action, a request in flight, and the countdown of the code entry. Never a code nor a key.
-  trainer: { view: null, unlock: null, ticked: new Set(), flowError: null, loading: false, failed: false, busy: false, busyText: "", timer: null },
+  trainer: { view: null, unlock: null, flowError: null, codeFormatError: null, loading: false, failed: false, busy: false, busyText: "", timer: null },
   reporting: null, reportingTimer: null, helpBusy: false,
   // Storage of the labs that keep data outside of the application (GET /settings/storage: Storage:Mode, its source), a save in flight.
   labStorage: null, labStorageBusy: false,
@@ -1100,7 +1100,7 @@ function renderTokens(container, usage) {
 // profile (409 profileIncomplete) without writing anything: the mode in use then stays selected and what is missing opens.
 const modelKinds = ["chat", "embedding"];
 const modelFormFields = ["provider", "endpoint", "deployment", "apiKey"];
-const modelButtons = '[data-model-mode], [data-action="save-model"], [data-action="remove-model-key"], [data-action="reapply-model"]';
+const modelButtons = '[data-action="save-model"], [data-action="remove-model-key"]';
 const storeErrors = ["storeInvalid", "storeReadFailed", "storeWriteFailed"];
 
 /** Element ids of a field of a model card: model-chat-endpoint, err-model-chat-endpoint, src-…, machine-…, hint-…, field-…. */
@@ -1146,13 +1146,12 @@ function renderConfigChip() {
   document.getElementById("config-state").textContent = t(`config.${kind}`);
 }
 
-/** The one-line state of a card. An embedding model not configured stays grey: only Lab07 needs it. */
-function modelCardState(kind, active) {
-  if (!active.configured) return { text: t("config.notConfigured"), dot: kind === "chat" ? "ko" : "" };
-  const auth = configState(active);
-  return kind === "embedding" && active.sameResourceAsLlm
-    ? { text: t("models.state.llmResource", { auth: t(`config.${auth.kind}`) }), dot: auth.dot }
-    : { text: t(`config.${auth.kind}`), dot: auth.dot };
+/** The state of a card of my configuration: used by the labs, saved but not used (the trainer's is), or not configured yet. */
+function modelCardState(kind, status) {
+  const { custom, mode } = status;
+  if (!custom.complete) return { text: t("models.card.notConfigured"), dot: "" };
+  if (mode !== "custom") return { text: t("models.card.notUsed"), dot: "warn" };
+  return { text: t("models.card.inUse"), dot: "ok" };
 }
 
 function sourceText(status, missingKey = "settings.sourceMissing") {
@@ -1241,17 +1240,24 @@ function selectSettingsTab(name, { focusField = false, kind = null } = {}) {
   if (focusField) focusSettingsField(name, kind);
 }
 
-/** The first visible field of a tab, or of a model card; a card showing no field (trainer mode) focuses its mode switch. */
+/** The first visible field of a tab, or of a card of my configuration; in the trainer's configuration, the code, else the chosen option. */
 function focusSettingsField(tab, kind = null) {
   if (tab === "storage") {
     document.querySelector('#storage-modes input:checked:not(:disabled)')?.focus();
     return;
   }
-  const root = document.getElementById(tab === "models" ? `model-card-${kind ?? "chat"}` : `settings-panel-${tab}`);
   const visible = (node) => !node.disabled && node.getClientRects().length > 0;
-  const target = [...root.querySelectorAll('input:not([type="radio"])')].find(visible)
-    ?? root.querySelector('[data-model-mode][aria-pressed="true"]');
-  target?.focus();
+  if (tab === "models") {
+    const code = document.getElementById("trainer-code-input");
+    const card = document.getElementById(`model-card-${kind ?? "chat"}`);
+    const target = state.modelsSource === "custom"
+      ? [...card.querySelectorAll('input:not([type="radio"])')].find(visible)
+      : visible(code) ? code : null;
+    (target ?? document.querySelector('input[name="models-source"]:checked'))?.focus();
+    return;
+  }
+  const root = document.getElementById(`settings-panel-${tab}`);
+  [...root.querySelectorAll('input:not([type="radio"])')].find(visible)?.focus();
 }
 
 /** AI models and Storage save themselves, so the footer only closes the dialog. Workshop: Cancel and Save. */
@@ -1308,13 +1314,88 @@ function renderSettings({ fill = false } = {}) {
   renderSettingsFooter();
 }
 
-/** Both model cards; only the kinds listed in `fill` get their inputs (re)filled from the saved profiles. */
+/** The AI models tab; only the kinds listed in `fill` get their inputs (re)filled from the saved profiles. */
 function renderModels({ fill = [] } = {}) {
   const models = state.models;
   if (!models) return;
-  for (const kind of modelKinds) renderModelCard(kind, models[kind], { fill: fill.includes(kind) });
+  renderModelsSource();
+  for (const kind of modelKinds) {
+    renderModelUsage(kind, models[kind]);
+    renderModelCard(kind, models[kind], { fill: fill.includes(kind) });
+  }
   renderTrainer();
   showStoreError(models.storeError);
+}
+
+/**
+ * The configuration chosen at first: the trainer's, unless the candidate already uses their own for every model (custom mode and an LLM
+ * configured). It only drives which pane shows: the server keeps the mode of each model.
+ */
+function defaultModelsSource() {
+  const models = state.models;
+  if (!models || modelKinds.some((kind) => models[kind].mode === "trainer")) return "trainer";
+  return models.chat.custom.complete ? "custom" : "trainer";
+}
+
+/** The choice and its pane: the trainer's configuration (code and Unlock) or my configuration (the two forms). */
+function renderModelsSource() {
+  const source = state.modelsSource;
+  document.querySelectorAll('input[name="models-source"]').forEach((radio) => { radio.checked = radio.value === source; });
+  document.getElementById("trainer-bar").hidden = source !== "trainer";
+  document.getElementById("models-custom-pane").hidden = source !== "custom";
+}
+
+/**
+ * Chooses the configuration for both models. It applies at once to each model whose profile is ready (unlocked before, or my configuration
+ * saved before); the others keep what they use until Unlock (trainer) or until their form is saved (custom).
+ */
+async function chooseModelsSource(source) {
+  state.modelsSource = source;
+  for (const kind of modelKinds) {
+    clearModelErrors(kind);
+    state.modelAsk[kind] = source === "custom" ? "custom" : null;
+  }
+  markSettingsTabErrors();
+  renderModels();
+  for (const kind of modelKinds) {
+    const status = state.models?.[kind];
+    if (!status || status.mode === source) continue;
+    if (source === "trainer" ? status.trainer.complete : status.custom.complete) await switchModelMode(kind, source, { quiet: true });
+  }
+  renderModels();
+  if (source === "trainer" && !document.getElementById("trainer-code").hidden) document.getElementById("trainer-code-input").focus();
+  if (source === "custom") focusSettingsField("models", modelKinds.find((kind) => state.models?.[kind]?.mode !== "custom") ?? "chat");
+}
+
+/** What the labs use for one model: the source (trainer, mine, not configured), the configuration, and a variable of this computer that wins. */
+function renderModelUsage(kind, status) {
+  const { mode, active, trainer } = status;
+  const configured = active.configured;
+  const source = document.getElementById(`models-usage-source-${kind}`);
+  source.className = `pill ${configured ? "passed" : kind === "chat" ? "failed" : "none"}`;
+  source.textContent = !configured ? t("config.notConfigured") : t(mode === "trainer" ? "models.usage.trainer" : "models.usage.custom");
+
+  const detail = document.getElementById(`models-usage-detail-${kind}`);
+  detail.classList.toggle("missing", !configured);
+  if (configured) {
+    const endpoint = active.endpoint.effectiveValue || (kind === "embedding" && active.sameResourceAsLlm ? state.models.chat.active.endpoint.effectiveValue : "");
+    const name = mode === "trainer" ? trainer.configName : null;
+    const deployment = active.deployment.effectiveValue;
+    detail.textContent = [name, deployment !== name ? deployment : null, endpoint ? hostOf(endpoint) : null, t(`config.${configState(active).kind}`)].filter(Boolean).join(" · ");
+  } else {
+    detail.textContent = t(`models.usage.missing.${kind}`, { source: t(state.modelsSource === "custom" ? "models.usage.fillCustom" : "models.usage.unlock") });
+  }
+
+  const overrides = environmentOverrides(active);
+  const list = document.getElementById(`models-usage-env-${kind}`);
+  list.hidden = !overrides.length;
+  list.replaceChildren(...overrides.map((text) => {
+    const item = el("li");
+    item.append(icon("lock", "ico-sm"), el("span", null, text));
+    return item;
+  }));
+  // The keys the labs read were changed outside the dashboard: they no longer hold the selected profile.
+  document.getElementById(`model-applied-${kind}`).hidden = status.applied !== false;
 }
 
 function renderModelBusy(kind) {
@@ -1323,6 +1404,9 @@ function renderModelBusy(kind) {
   card.setAttribute("aria-busy", String(busy));
   // aria-disabled, not disabled: the focused button keeps the focus while a request is in flight.
   card.querySelectorAll(modelButtons).forEach((button) => button.setAttribute("aria-disabled", String(busy)));
+  document.querySelector(`#model-applied-${kind} [data-action="reapply-model"]`).setAttribute("aria-disabled", String(busy));
+  const anyBusy = state.modelBusy.size > 0;
+  document.querySelectorAll('input[name="models-source"]').forEach((radio) => { radio.disabled = anyBusy; });
 }
 
 function setModelBusy(kind, busy) {
@@ -1331,61 +1415,13 @@ function setModelBusy(kind, busy) {
   renderModelBusy(kind);
 }
 
-/**
- * One card. Visible areas: the trainer area in trainer mode, or after a refused switch to it ("not retrieved yet");
- * my configuration in custom mode, or after a refused switch to it (the form, with what is missing).
- */
+/** One card of my configuration: its state (used by the labs, saved but not used, not configured yet) and its form. */
 function renderModelCard(kind, status, { fill = false } = {}) {
-  const card = document.getElementById(`model-card-${kind}`);
-  const ask = state.modelAsk[kind];
   renderModelBusy(kind);
-
-  const head = modelCardState(kind, status.active);
+  const head = modelCardState(kind, status);
   document.getElementById(`model-dot-${kind}`).className = `status-dot ${head.dot}`;
   document.getElementById(`model-state-${kind}`).textContent = head.text;
-
-  card.querySelectorAll("[data-model-mode]").forEach((button) => button.setAttribute("aria-pressed", String(button.dataset.modelMode === status.mode)));
-  // The keys the labs read were changed outside the dashboard: they no longer hold the selected profile.
-  document.getElementById(`model-applied-${kind}`).hidden = status.applied !== false;
-
-  document.getElementById(`model-trainer-${kind}`).hidden = !(status.mode === "trainer" || ask === "trainer");
-  document.getElementById(`model-custom-${kind}`).hidden = !(status.mode === "custom" || ask === "custom");
-  renderModelTrainer(kind, status);
   renderModelCustom(kind, status, { fill });
-}
-
-/** The trainer profile in use: a read-only summary of the last unlock, otherwise a calm "not unlocked yet" (the offer above the card says what Unlock brings). */
-function renderModelTrainer(kind, status) {
-  const { trainer, mode, active } = status;
-  const empty = document.getElementById(`model-trainer-empty-${kind}`);
-  empty.hidden = trainer.complete;
-  empty.textContent = trainer.complete ? ""
-    : trainer.provider && !trainer.missing.length ? t("models.trainerUnsupported")
-    : t(mode === "custom" ? "models.trainerNotRetrievedKeep" : "models.trainerNotRetrieved");
-
-  const summary = document.getElementById(`model-trainer-summary-${kind}`);
-  summary.hidden = !trainer.complete;
-  summary.replaceChildren(...(!trainer.complete ? [] : [
-    ["models.summary.configuration", trainer.configName],
-    ["models.summary.provider", providerLabel(trainer.provider)],
-    ["models.summary.endpoint", hostOf(trainer.endpoint)],
-    ["models.summary.deployment", trainer.deployment],
-    ["models.summary.key", t(trainer.apiKey.stored ? "models.keyProvided" : "models.keyNotProvided")],
-    ["models.summary.retrieved", trainer.retrievedAt ? fmtDate(trainer.retrievedAt) : "—"],
-  ].map(([label, value]) => {
-    const row = el("div");
-    row.append(el("dt", null, t(label)), el("dd", null, value || "—"));
-    return row;
-  })));
-
-  const overrides = mode === "trainer" ? environmentOverrides(active) : [];
-  const list = document.getElementById(`model-trainer-env-${kind}`);
-  list.hidden = !overrides.length;
-  list.replaceChildren(...overrides.map((text) => {
-    const item = el("li");
-    item.append(icon("lock", "ico-sm"), el("span", null, text));
-    return item;
-  }));
 }
 
 /** My configuration: the saved custom profile. A field set by an AzureOpenAI__* variable shows that value, read-only, since it wins. */
@@ -1396,7 +1432,7 @@ function renderModelCustom(kind, status, { fill = false } = {}) {
 
   const note = document.getElementById(`model-custom-note-${kind}`);
   note.hidden = inUse;
-  note.textContent = inUse ? "" : t(state.modelAsk[kind] === "custom" && custom.missing.length ? "models.customIncomplete" : "models.customNotInUse");
+  note.textContent = inUse ? "" : t(custom.complete ? "models.customNotInUse" : "models.customIncomplete");
 
   // Provider: only those the server accepts (Azure OpenAI in phase 1).
   const select = document.getElementById(modelIds(kind, "provider").input);
@@ -1471,8 +1507,8 @@ async function openSettings(tab = "models", { kind = null } = {}) {
   await Promise.all([loadSettings(), loadReportingStatus(), loadLabStorage()]);
   const name = settingsTabs.includes(tab) ? tab : "models";
   state.modelAsk = { chat: null, embedding: null };
-  Object.assign(state.trainer, { view: null, flowError: null, failed: false });
-  state.trainer.ticked.clear();
+  state.modelsSource = defaultModelsSource();
+  Object.assign(state.trainer, { view: null, flowError: null, codeFormatError: null, failed: false });
   for (const model of modelKinds) document.getElementById(`model-live-${model}`).textContent = "";
   clearSettingsErrors();
   selectSettingsTab(name);
@@ -1626,8 +1662,8 @@ async function saveModel(kind) {
   renderModels({ fill: [kind] });
   renderSettingsNav();
   markSettingsTabErrors();
-  // Saved after a refused switch to my configuration: switch to it now, as asked.
-  if (state.modelAsk[kind] === "custom") {
+  // "Save and use": my configuration is chosen, so this model switches to it now.
+  if (state.modelsSource === "custom" && state.models[kind].mode !== "custom") {
     await switchModelMode(kind, "custom");
     return;
   }
@@ -1638,7 +1674,7 @@ async function saveModel(kind) {
  * Asks the server to use the trainer or my configuration for a kind (or, with reapply, to write the selected one again).
  * Refused because the profile is incomplete: nothing was written, the mode in use stays selected and what is missing opens.
  */
-async function switchModelMode(kind, mode, { reapply = false } = {}) {
+async function switchModelMode(kind, mode, { reapply = false, quiet = false } = {}) {
   const status = state.models?.[kind];
   if (!status || state.modelBusy.has(kind)) return;
   const live = document.getElementById(`model-live-${kind}`);
@@ -1677,7 +1713,8 @@ async function switchModelMode(kind, mode, { reapply = false } = {}) {
     renderModels();
     renderSettingsNav();
     live.textContent = "";
-    toast(t(reapply ? "models.reapplied" : "models.switched", { model, mode: modeLabel(mode) }));
+    if (quiet) live.textContent = t("models.inUse", { model, mode: modeLabel(mode) });
+    else toast(t(reapply ? "models.reapplied" : "models.switched", { model, mode: modeLabel(mode) }));
     return;
   }
 
@@ -1690,12 +1727,7 @@ async function switchModelMode(kind, mode, { reapply = false } = {}) {
       live.textContent = t("models.customIncomplete");
       document.querySelector(`#model-custom-${kind} [aria-invalid="true"]`)?.focus();
     } else {
-      // Nothing unlocked yet for this kind: tick it for Unlock when the trainer provides a usable configuration.
-      if (trainerOffer(kind)?.canUse && state.trainer.unlock?.status !== "codeRequired") {
-        state.trainer.ticked.add(kind);
-        renderTrainer();
-        document.getElementById("trainer-unlock").focus();
-      }
+      // Nothing unlocked yet for this kind: the trainer pane asks for the code.
       live.textContent = t("models.trainerNotRetrievedKeep");
     }
   } else if (code === 409 && payload.error === "unsupportedProvider") {
@@ -1769,29 +1801,21 @@ async function loadTrainer() {
   } finally {
     trainer.loading = false;
   }
-  for (const kind of [...trainer.ticked]) if (!trainerOffer(kind)?.canUse) trainer.ticked.delete(kind);
   setTrainerUnlock(trainer.view?.unlock ?? null);
   renderTrainer();
 }
 
-/** The unlock state the server returned; the countdown of the code entry follows its expiry. */
+/** The unlock state the server returned. The envelope it holds expires after 10 minutes: the next Unlock then fetches a new one. */
 function setTrainerUnlock(unlock) {
   const trainer = state.trainer;
   trainer.unlock = unlock;
-  clearInterval(trainer.timer);
+  clearTimeout(trainer.timer);
   trainer.timer = null;
   if (unlock?.status !== "codeRequired" || !unlock.expiresAt) return;
-  trainer.timer = setInterval(() => {
-    if (Date.parse(unlock.expiresAt) > Date.now()) {
-      renderTrainerCodeHint();
-      return;
-    }
-    // Expired: the server has dropped the envelope too; the candidate clicks Unlock again.
-    setTrainerUnlock(null);
-    trainer.flowError = { kind: "envelopeExpired", reason: "noEnvelope" };
-    document.getElementById("trainer-code-input").value = "";
+  trainer.timer = setTimeout(() => {
+    trainer.unlock = null;
     renderTrainer();
-  }, 1000);
+  }, Math.max(0, Date.parse(unlock.expiresAt) - Date.now()));
 }
 
 /** The dialog closes with an unlock under way: the server drops the envelope (Rule 14). */
@@ -1830,21 +1854,31 @@ function trainerErrorAction(error) {
     return { label: "trainer.action.workshop", run: () => selectSettingsTab("workshop", { focusField: true }) };
   }
   if (["network", "unavailable", "unknown", "local"].includes(error.kind)) {
-    return { label: "trainer.action.retry", run: () => (state.trainer.flowError ? startTrainerUnlock() : loadTrainer()) };
+    return { label: "trainer.action.retry", run: () => (state.trainer.flowError ? unlockTrainer() : loadTrainer()) };
   }
   return null;
 }
 
 function renderTrainer() {
   renderTrainerBar();
-  for (const kind of modelKinds) renderTrainerOffer(kind);
 }
 
-/** The bar: loading, the simulated notice, the error, Unlock for the ticked kinds, or the code entry. */
+/** The models Unlock brings: every one the trainer provides that the labs can use and do not use yet (or that the trainer updated since). */
+const trainerKindsToUnlock = () => modelKinds.filter((kind) => trainerOffer(kind)?.canUse && !trainerOfferInUse(kind));
+
+/** The format of the access code: from the unlock under way, else from the overview, else the contract's (5 characters, no 0 O 1 I L). */
+function trainerCodeFormat() {
+  const unlock = state.trainer.unlock ?? state.trainer.view?.unlock;
+  return { length: unlock?.codeLength ?? 5, alphabet: unlock?.codeAlphabet ?? "ABCDEFGHJKMNPQRSTUVWXYZ23456789" };
+}
+
+/**
+ * The trainer pane: what the trainer provides for each model, then the access code and Unlock for every model still to unlock, or the
+ * confirmation that the labs use the trainer's configuration. An error that a tab or a retry fixes shows in the notice; the others under the code.
+ */
 function renderTrainerBar() {
   const trainer = state.trainer;
   const view = trainer.view;
-  const pending = trainerPending();
   document.getElementById("trainer-bar").setAttribute("aria-busy", String(trainer.loading || trainer.busy));
   document.getElementById("trainer-simulated").hidden = !view?.simulated;
   document.getElementById("trainer-refresh").setAttribute("aria-disabled", String(trainer.loading || trainer.busy));
@@ -1853,8 +1887,8 @@ function renderTrainerBar() {
   const busyText = trainer.loading ? t("trainer.loading") : trainer.busy ? t(trainer.busyText) : "";
   status.replaceChildren(...(busyText ? [el("span", "spinner"), el("span", null, busyText)] : []));
 
-  // While a code is asked, the error of the last attempt shows under the field; otherwise in the bar, before the overview's.
-  const error = pending ? null : trainer.flowError ?? view?.error ?? (trainer.failed ? { kind: "local" } : null);
+  const flowNotice = trainer.flowError && trainerErrorAction(trainer.flowError) ? trainer.flowError : null;
+  const error = flowNotice ?? view?.error ?? (trainer.failed ? { kind: "local" } : null);
   const notice = document.getElementById("trainer-error");
   notice.hidden = !error || trainer.loading;
   notice.className = `notice model-notice ${error?.kind === "notFound" ? "" : "notice-warn"}`.trim();
@@ -1865,81 +1899,64 @@ function renderTrainerBar() {
   button.textContent = action ? t(action.label) : "";
   button.onclick = action ? action.run : null;
 
-  // Unlock for the ticked kinds; nothing to tick: up to date (everything in use) or nothing usable here.
-  const ticked = modelKinds.filter((kind) => trainer.ticked.has(kind));
-  const tickable = modelKinds.filter((kind) => trainerOffer(kind)?.canUse && !trainerOfferInUse(kind));
-  document.getElementById("trainer-actions").hidden = pending || !view?.overview;
-  const unlockButton = document.getElementById("trainer-unlock");
-  unlockButton.hidden = !ticked.length && !tickable.length;
-  unlockButton.setAttribute("aria-disabled", String(!ticked.length || trainer.busy));
-  document.getElementById("trainer-unlock-hint").textContent = ticked.length ? t("trainer.unlockFor", { models: modelNames(ticked) })
-    : tickable.length ? t("trainer.tickFirst")
-    : modelKinds.some(trainerOfferInUse) ? t("trainer.upToDate")
-    : t("trainer.nothingUsable");
+  const overview = !trainer.loading && view?.overview;
+  const offers = document.getElementById("trainer-offers");
+  offers.hidden = !overview;
+  offers.replaceChildren(...(overview ? modelKinds.map(renderTrainerOffer) : []));
 
-  document.getElementById("trainer-code").hidden = !pending;
-  if (pending) {
-    renderTrainerCodeHint();
+  // The access code: for every model still to unlock, all at once.
+  const toUnlock = overview ? trainerKindsToUnlock() : [];
+  document.getElementById("trainer-code").hidden = !toUnlock.length;
+  if (toUnlock.length) {
+    const { length } = trainerCodeFormat();
+    const parts = [t("trainer.codeHint", { length, models: modelNames(toUnlock) })];
+    if (trainerPending() && trainer.unlock.attemptsLeft != null) parts.push(t("trainer.attemptsLeft", { count: trainer.unlock.attemptsLeft }));
+    document.getElementById("trainer-code-hint").textContent = parts.join(" ");
     const codeError = document.getElementById("trainer-code-error");
     const local = trainer.codeFormatError;
-    const message = local ? t(local, { length: trainer.unlock.codeLength }) : trainerErrorText(trainer.flowError);
+    const message = local ? t(local, { length }) : flowNotice ? "" : trainerErrorText(trainer.flowError);
     codeError.hidden = !message;
     codeError.textContent = message;
     document.getElementById("trainer-code-input").setAttribute("aria-invalid", String(Boolean(message)));
+    document.getElementById("trainer-code-input").disabled = trainer.busy;
     updateTrainerCodeSubmit();
   }
+
+  // Nothing left to unlock: say which models use the trainer's configuration.
+  const inUse = overview ? modelKinds.filter(trainerOfferInUse) : [];
+  const done = document.getElementById("trainer-done");
+  done.hidden = toUnlock.length > 0 || !inUse.length;
+  document.getElementById("trainer-done-text").textContent = inUse.length ? t("trainer.upToDate", { models: modelNames(inUse) }) : "";
 }
 
-function renderTrainerCodeHint() {
-  const unlock = state.trainer.unlock;
-  if (!unlock || unlock.status !== "codeRequired") return;
-  const seconds = Math.max(0, (Date.parse(unlock.expiresAt) - Date.now()) / 1000);
-  const parts = [t("trainer.codeHint", { length: unlock.codeLength, models: modelNames(unlock.kinds), time: fmtClock(seconds) })];
-  if (unlock.attemptsLeft != null) parts.push(t("trainer.attemptsLeft", { count: unlock.attemptsLeft }));
-  document.getElementById("trainer-code-hint").textContent = parts.join(" ");
-}
-
-/** The offer of one card: the trainer's default of this kind, why it cannot be used, its warnings, and the tick for Unlock. */
+/** One row of the trainer pane: the trainer's default for this model, and whether the labs use it, it is to unlock, or it cannot be used. */
 function renderTrainerOffer(kind) {
-  const node = document.getElementById(`model-offer-${kind}`);
   const offer = trainerOffer(kind);
+  const row = el("li", "trainer-offer");
+  const head = el("div", "trainer-offer-head");
+  head.append(el("b", null, t(`models.${kind}.title`)));
+
   const inUse = trainerOfferInUse(kind);
-  node.hidden = !offer || inUse;
-  if (!offer || inUse) {
-    node.replaceChildren();
-    return;
-  }
+  const badge = !offer || !offer.canUse ? pill("none", t("trainer.badge.unavailable"))
+    : inUse ? pill("passed", t("trainer.badge.inUse"))
+    : offer.updatedSinceUnlock ? pill("running", t("trainer.badge.updated"))
+    : pill("bonus", t("trainer.badge.toUnlock"));
+  head.append(badge);
+  row.append(head);
 
-  const head = el("div", "model-offer-head");
-  head.append(el("span", null, t("trainer.offer")));
-  if (offer.default) head.append(el("b", null, offer.default.name));
-  if (offer.updatedSinceUnlock) head.append(pill("running", t("trainer.updated")));
-  const parts = [head];
-
-  const config = offer.default;
+  const config = offer?.default;
   if (config) {
     const key = t(config.keyProvided ? "trainer.keyProvided" : "trainer.keyNotProvided");
-    parts.push(el("p", "model-offer-line", [providerLabel(config.provider), config.deployment, config.endpointHost, key].filter(Boolean).join(" · ")));
+    row.append(el("p", "trainer-offer-line", [config.name, config.deployment !== config.name ? config.deployment : null, config.endpointHost, key].filter(Boolean).join(" · ")));
   }
 
-  const note = offer.state === "none" ? t(`trainer.none.${kind}`)
+  const note = !offer || offer.state === "none" ? t(`trainer.none.${kind}`)
     : offer.state === "notApplicable" ? t(offer.reason === "unknownProvider" ? "trainer.unknownProvider" : "trainer.notApplicable", { provider: providerLabel(config?.provider) })
     : offer.state === "unusable" ? t(offer.reason === "invalidSettings" ? "trainer.unusableSettings" : "trainer.unusable")
     : "";
-  if (note) parts.push(el("p", `model-offer-note${offer.state === "none" ? "" : " warn"}`, note));
-  for (const warning of offer.warnings ?? []) parts.push(el("p", "model-offer-note warn", t(`trainer.warning.${warning}`)));
-
-  if (offer.canUse) {
-    const label = el("label", "model-offer-tick");
-    const box = el("input");
-    box.type = "checkbox";
-    box.dataset.trainerKind = kind;
-    box.checked = state.trainer.ticked.has(kind);
-    box.disabled = trainerPending() || state.trainer.busy;
-    label.append(box, el("span", null, t("trainer.useIt")));
-    parts.push(label);
-  }
-  node.replaceChildren(...parts);
+  if (note) row.append(el("p", `trainer-offer-note${offer?.state === "none" || !offer ? "" : " warn"}`, `${note} ${t("trainer.useCustomInstead")}`));
+  for (const warning of offer?.warnings ?? []) row.append(el("p", "trainer-offer-note warn", t(`trainer.warning.${warning}`)));
+  return row;
 }
 
 /** Keeps the characters of the code alphabet only: upper-cased as typed, spaces and dashes dropped (pasting "k7qx-9" works). */
@@ -1950,55 +1967,54 @@ function normalizeTrainerCode(value, alphabet) {
 }
 
 function updateTrainerCodeSubmit() {
-  const unlock = state.trainer.unlock;
   const value = document.getElementById("trainer-code-input").value;
-  const ready = !!unlock && value.length === unlock.codeLength && !state.trainer.busy;
-  document.getElementById("trainer-code-submit").setAttribute("aria-disabled", String(!ready));
-  document.getElementById("trainer-code-cancel").setAttribute("aria-disabled", String(state.trainer.busy));
+  const ready = value.length === trainerCodeFormat().length && !state.trainer.busy && !state.trainer.loading;
+  document.getElementById("trainer-unlock").setAttribute("aria-disabled", String(!ready));
   return ready;
 }
 
-/** Unlock: the dashboard server fetches one envelope for the ticked kinds and holds it; then the code is asked. */
-async function startTrainerUnlock() {
-  const trainer = state.trainer;
-  const kinds = modelKinds.filter((kind) => trainer.ticked.has(kind));
-  if (trainer.busy || trainer.loading) return;
-  if (!kinds.length) {
-    toast(t("trainer.tickFirst"));
-    return;
-  }
+const sameKinds = (a, b) => a.length === b.length && a.every((kind) => b.includes(kind));
 
-  Object.assign(trainer, { busy: true, busyText: "trainer.starting", flowError: null, codeFormatError: null });
-  renderTrainer();
-  let response = null;
-  try {
-    response = await api.post("/trainer-models/unlock", { kinds });
-  } catch {
-    trainer.flowError = { kind: "local" };
-  } finally {
-    trainer.busy = false;
-  }
-
-  if (response?.ok) {
-    setTrainerUnlock(response.payload);
-    trainer.flowError = response.payload.error ?? null;
-  } else if (response) {
-    trainer.flowError = { kind: "unknown" };
-  }
-  renderTrainer();
-  if (trainerPending()) document.getElementById("trainer-code-input").focus();
-  else await reviewAgainIfChanged(trainer.flowError);
-}
-
-/** The code: sent once, cleared from the field at once (Rule 13). Success saves the keys and switches the ticked kinds. */
-async function submitTrainerCode() {
+/**
+ * Unlock, in one step for the candidate: the dashboard server fetches one envelope for every model still to unlock (POST /trainer-models/unlock),
+ * then the code opens it (POST /trainer-models/code): the keys are saved and those models switch to the trainer's configuration. After a wrong
+ * code, the envelope held for the same models is used again. The code is cleared from the field as soon as it is sent (Rule 13).
+ */
+async function unlockTrainer() {
   const trainer = state.trainer;
   const input = document.getElementById("trainer-code-input");
-  if (!trainerPending() || !updateTrainerCodeSubmit()) return;
+  if (trainer.busy || trainer.loading || !updateTrainerCodeSubmit()) return;
+  const kinds = trainerKindsToUnlock();
+  if (!kinds.length) return;
+
+  Object.assign(trainer, { busy: true, flowError: null, codeFormatError: null });
+  if (!(trainerPending() && sameKinds(trainer.unlock.kinds, kinds))) {
+    trainer.busyText = "trainer.starting";
+    renderTrainer();
+    let started = null;
+    try {
+      started = await api.post("/trainer-models/unlock", { kinds });
+    } catch {
+      trainer.flowError = { kind: "local" };
+    }
+    if (started?.ok) {
+      setTrainerUnlock(started.payload);
+      trainer.flowError = started.payload.error ?? null;
+    } else if (started) {
+      trainer.flowError = { kind: "unknown" };
+    }
+    if (!trainerPending()) {
+      // Refused before any code was sent: the code stays in the field for the next try.
+      trainer.busy = false;
+      renderTrainer();
+      await reviewAgainIfChanged(trainer.flowError);
+      return;
+    }
+  }
+
   const code = input.value;
   input.value = "";
-
-  Object.assign(trainer, { busy: true, busyText: "trainer.opening", flowError: null, codeFormatError: null });
+  trainer.busyText = "trainer.opening";
   renderTrainer();
   let response = null;
   try {
@@ -2025,18 +2041,17 @@ async function submitTrainerCode() {
   setTrainerUnlock(view);
   trainer.flowError = view.error ?? null;
   if (view.status === "unlocked") {
-    trainer.ticked.clear();
     state.models = view.models;
     for (const kind of view.kinds) {
       state.modelAsk[kind] = null;
       const offer = trainerOffer(kind);
       if (offer) offer.updatedSinceUnlock = false;
-      document.getElementById(`model-live-${kind}`).textContent = t("trainer.unlockedLive", { model: t(`models.${kind}.title`) });
     }
+    document.getElementById("model-live-chat").textContent = t("trainer.unlockedLive", { models: modelNames(view.kinds) });
     renderConfigChip();
     renderModels();
     renderSettingsNav();
-    toast(t("trainer.unlocked"));
+    toast(t("trainer.unlocked", { models: modelNames(view.kinds) }));
     return;
   }
 
@@ -2045,26 +2060,9 @@ async function submitTrainerCode() {
   else await reviewAgainIfChanged(trainer.flowError);
 }
 
-/** Rule 20: the trainer changed the configuration (or a ticked kind is no longer usable): the overview is read again for a new review. */
+/** Rule 20: the trainer changed the configuration (or a model is no longer usable): the overview is read again for a new review. */
 async function reviewAgainIfChanged(error) {
   if (error?.reason === "configChanged" || error?.reason === "notApplicable") await loadTrainer();
-}
-
-async function cancelTrainerUnlock() {
-  const trainer = state.trainer;
-  if (trainer.busy) return;
-  document.getElementById("trainer-code-input").value = "";
-  Object.assign(trainer, { flowError: null, codeFormatError: null });
-  setTrainerUnlock(null);
-  renderTrainer();
-  try {
-    const response = await api.post("/trainer-models/cancel");
-    if (response.ok) setTrainerUnlock(response.payload);
-  } catch {
-    // The server drops the envelope at its expiry anyway.
-  }
-  renderTrainer();
-  document.getElementById("trainer-unlock").focus();
 }
 
 function wireTrainer() {
@@ -2073,49 +2071,45 @@ function wireTrainer() {
     state.trainer.flowError = null;
     loadTrainer();
   });
-  document.getElementById("trainer-unlock").addEventListener("click", startTrainerUnlock);
-  document.getElementById("trainer-code-submit").addEventListener("click", submitTrainerCode);
-  document.getElementById("trainer-code-cancel").addEventListener("click", cancelTrainerUnlock);
+  document.getElementById("trainer-unlock").addEventListener("click", unlockTrainer);
 
   const input = document.getElementById("trainer-code-input");
   input.addEventListener("input", () => {
-    const unlock = state.trainer.unlock;
-    if (!unlock) return;
-    const { kept, dropped } = normalizeTrainerCode(input.value, unlock.codeAlphabet);
+    const { length, alphabet } = trainerCodeFormat();
+    const { kept, dropped } = normalizeTrainerCode(input.value, alphabet);
     input.value = kept;
-    state.trainer.codeFormatError = dropped ? "trainer.codeAlphabet" : kept.length > unlock.codeLength ? "trainer.codeTooLong" : null;
+    state.trainer.codeFormatError = dropped ? "trainer.codeAlphabet" : kept.length > length ? "trainer.codeTooLong" : null;
     state.trainer.flowError = null;
     renderTrainerBar();
   });
-  // Enter submits the code, never the settings form.
+  // Enter unlocks, never submits the settings form.
   input.addEventListener("keydown", (event) => {
     if (event.key !== "Enter") return;
     event.preventDefault();
-    submitTrainerCode();
+    unlockTrainer();
   });
-
-  // The ticks of the cards: only the bar changes (the checkbox keeps the focus).
-  for (const kind of modelKinds) {
-    document.getElementById(`model-offer-${kind}`).addEventListener("change", (event) => {
-      const box = event.target.closest("[data-trainer-kind]");
-      if (!box) return;
-      if (box.checked) state.trainer.ticked.add(kind);
-      else state.trainer.ticked.delete(kind);
-      renderTrainerBar();
-    });
-  }
 }
 
 function wireModels() {
+  // Which configuration: the trainer's or my own, for both models.
+  document.querySelectorAll('input[name="models-source"]').forEach((radio) => {
+    radio.addEventListener("change", () => { if (radio.checked) chooseModelsSource(radio.value); });
+  });
+  // "Apply it again", in the rows of what the labs use.
+  document.querySelectorAll('[data-action="reapply-model"]').forEach((button) => {
+    button.addEventListener("click", () => {
+      const kind = button.dataset.kind;
+      if (state.models?.[kind]) switchModelMode(kind, state.models[kind].mode, { reapply: true });
+    });
+  });
+
   for (const kind of modelKinds) {
     const card = document.getElementById(`model-card-${kind}`);
     card.addEventListener("click", (event) => {
-      const button = event.target.closest(modelButtons);
+      const button = event.target.closest('[data-action="save-model"], [data-action="remove-model-key"]');
       if (!button || !card.contains(button)) return;
-      if (button.dataset.modelMode) switchModelMode(kind, button.dataset.modelMode);
-      else if (button.dataset.action === "save-model") saveModel(kind);
-      else if (button.dataset.action === "remove-model-key") removeModelKey(kind);
-      else if (button.dataset.action === "reapply-model" && state.models) switchModelMode(kind, state.models[kind].mode, { reapply: true });
+      if (button.dataset.action === "save-model") saveModel(kind);
+      else removeModelKey(kind);
     });
     // Enter in a field of my configuration saves this card only (both cards and the workshop share the dialog's form).
     card.addEventListener("keydown", (event) => {

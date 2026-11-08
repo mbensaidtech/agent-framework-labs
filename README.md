@@ -80,7 +80,7 @@ Each lab reads its settings from these sources (the last one wins):
 
 Two sources, for the LLM (every lab) and the embedding model (Lab07) independently:
 
-- **In a workshop: the trainer's configuration.** The trainer e-mails you an **invitation code** and announces an **access code**. In the dashboard, paste the invitation code in *Join the workshop*, then in **AI models** tick *Use the trainer's configuration*, click **Unlock** and type the access code: the endpoints, deployments and keys are saved for you, without ever being displayed (see [step 4 of Option B](#4-configure-the-ai-models-from-the-dashboard)).
+- **In a workshop: the trainer's configuration.** The trainer e-mails you an **invitation code** and announces an **access code**. In the dashboard, paste the invitation code in *Join the workshop*, then in **AI models** keep *Trainer's configuration* (selected by default), type the access code and click **Unlock**: the endpoints, deployments and keys are saved for you, without ever being displayed (see [step 4 of Option B](#4-configure-the-ai-models-from-the-dashboard)).
 - **Your own Azure OpenAI resource.** In the [Azure portal](https://portal.azure.com), open the resource, then *Resource Management → **Keys and Endpoint***: the **endpoint** (`https://<resource>.openai.azure.com/`) and **KEY 1** (the API key, optional with Microsoft Entra ID). The **deployment** is the name you gave the model deployment in [Azure AI Foundry](https://ai.azure.com) (*Deployments*), not the model name. Lab07 also needs an embedding deployment (for example of `text-embedding-3-small`), on the same resource or on another one.
 
 Pick one method:
@@ -212,12 +212,12 @@ Click a lab in the list. Its page has five tabs:
 
 #### 4. Configure the AI models from the dashboard
 
-Click the **Azure OpenAI** status in the top bar: the **AI models** tab has one card for the **LLM** (every lab) and one for the **embedding model** (Lab07). For each one, choose:
+Click the **Azure OpenAI** status in the top bar. The **AI models** tab shows first what the labs use now, for the **LLM** (every lab) and the **embedding model** (Lab07), then one choice for both:
 
-- **Trainer configuration** (in a workshop, once you joined it with the trainer's invitation code): the card shows the trainer's configuration, without any code. Tick **Use the trainer's configuration** in the cards you want, click **Unlock** and type the **access code** announced by the trainer (5 characters; `k7qx-9` works too). The keys are opened by the dashboard on your machine and saved at once; they are never displayed.
-- **My configuration**: your own Azure OpenAI deployment — **Endpoint** (e.g. `https://my-resource.openai.azure.com/`), **Deployment** (the deployment name, not the model name) and an optional **API key** (empty: Microsoft Entra ID with `az login`). The embedding model uses *the same resource as the LLM* (only its deployment) or *its own resource*. Click the card's **Save**; once saved, a key is never displayed again (`••••` and its last 4 characters) and **Remove** deletes it.
+- **Trainer's configuration** (selected by default; in a workshop, once you joined it with the trainer's `LB1.` invitation code): the tab lists what the trainer provides. Type the **access code** announced by the trainer (5 characters; `k7qx-9` works too) and click **Unlock**: both models are set up at once. The keys are opened by the dashboard on your machine and saved at once; they are never displayed.
+- **My own configuration**: one form per model for your own Azure OpenAI deployment — **Endpoint** (e.g. `https://my-resource.openai.azure.com/`), **Deployment** (the deployment name, not the model name) and an optional **API key** (empty: Microsoft Entra ID with `az login`). The embedding model uses *the same resource as the LLM* (only its deployment) or *its own resource*. Click **Save and use** on the form; once saved, a key is never displayed again (`••••` and its last 4 characters) and **Remove** deletes it.
 
-Switching a card back and forth never loses your own values. Everything is written to the shared user secrets (outside the repository) and used by the **next run, from the dashboard and from `dotnet run` alike**. Each field shows where its value comes from and warns when an `AzureOpenAI__*` environment variable overrides it.
+Switching back and forth never loses your own values, and never asks for the access code again. Everything is written to the shared user secrets (outside the repository) and used by the **next run, from the dashboard and from `dotnet run` alike**. Each field shows where its value comes from and warns when an `AzureOpenAI__*` environment variable overrides it.
 
 #### 5. Run the lab
 

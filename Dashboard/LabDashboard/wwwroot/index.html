@@ -185,20 +185,68 @@
         <div class="dialog-body settings-panels">
           <p class="notice notice-bad" id="settings-store-error" role="alert" hidden></p>
 
-          <!-- AI models: the LLM (every lab) and the embedding model (Lab07), each with its mode: the trainer's configuration or my own.
-               Used by every lab run (dashboard and dotnet run). Ids are model-{kind}-{field}, kind = chat | embedding. -->
+          <!-- AI models: the LLM (every lab) and the embedding model (Lab07). The page shows, in this order: what the labs use now, the choice
+               of the configuration (the trainer's, the default, or my own), then the matching pane. The choice only drives which pane shows; the
+               server keeps a mode per kind (PUT /settings/models/{kind}/mode), switched here when a profile is ready. Ids: model-{kind}-{field}. -->
           <section class="settings-panel" id="settings-panel-models" role="tabpanel" aria-labelledby="settings-tab-models">
             <div class="panel-head">
               <h3 data-i18n="models.title"></h3>
               <p class="hint" data-i18n="models.intro"></p>
             </div>
 
-            <!-- The trainer's configurations (Business Rules 13–20): read without any code when this tab opens or on Refresh; Unlock for the kinds
-                 ticked in the cards below, then the access code announced by the trainer. The code is cleared after each attempt and never stored
-                 by the page; the keys never reach it (only "provided"). -->
+            <!-- 1. What the labs use now, per model: the source, the deployment and the resource, and what wins on this computer. -->
+            <section class="models-usage" aria-labelledby="models-usage-title">
+              <h4 id="models-usage-title" data-i18n="models.usage.title"></h4>
+              <ul class="models-usage-list">
+                <li class="models-usage-row" id="models-usage-chat">
+                  <span class="model-card-ico" aria-hidden="true"><svg class="ico"><use href="#i-chat"/></svg></span>
+                  <div class="models-usage-text">
+                    <div class="models-usage-line"><b data-i18n="models.chat.title"></b><span class="pill" id="models-usage-source-chat"></span></div>
+                    <p class="models-usage-detail" id="models-usage-detail-chat"></p>
+                    <ul class="model-overrides" id="models-usage-env-chat"></ul>
+                    <div class="notice notice-warn model-notice" id="model-applied-chat" hidden>
+                      <span data-i18n="models.notApplied"></span>
+                      <button class="btn btn-sm" type="button" data-action="reapply-model" data-kind="chat" data-i18n="models.reapply"></button>
+                    </div>
+                  </div>
+                </li>
+                <li class="models-usage-row" id="models-usage-embedding">
+                  <span class="model-card-ico" aria-hidden="true"><svg class="ico"><use href="#i-layers"/></svg></span>
+                  <div class="models-usage-text">
+                    <div class="models-usage-line"><b data-i18n="models.embedding.title"></b><span class="pill" id="models-usage-source-embedding"></span></div>
+                    <p class="models-usage-detail" id="models-usage-detail-embedding"></p>
+                    <ul class="model-overrides" id="models-usage-env-embedding"></ul>
+                    <div class="notice notice-warn model-notice" id="model-applied-embedding" hidden>
+                      <span data-i18n="models.notApplied"></span>
+                      <button class="btn btn-sm" type="button" data-action="reapply-model" data-kind="embedding" data-i18n="models.reapply"></button>
+                    </div>
+                  </div>
+                </li>
+              </ul>
+              <p class="sr-only" id="model-live-chat" aria-live="polite"></p>
+              <p class="sr-only" id="model-live-embedding" aria-live="polite"></p>
+            </section>
+
+            <!-- 2. Which configuration: the trainer's (default) or my own, for both models. -->
+            <fieldset class="models-source">
+              <legend data-i18n="models.source.legend"></legend>
+              <div class="choice-row">
+                <label class="choice choice-lg">
+                  <input type="radio" name="models-source" value="trainer">
+                  <span><b><svg class="ico ico-sm" aria-hidden="true"><use href="#i-ticket"/></svg><span data-i18n="models.source.trainer"></span></b><small data-i18n="models.source.trainerHint"></small></span>
+                </label>
+                <label class="choice choice-lg">
+                  <input type="radio" name="models-source" value="custom">
+                  <span><b><svg class="ico ico-sm" aria-hidden="true"><use href="#i-user"/></svg><span data-i18n="models.source.custom"></span></b><small data-i18n="models.source.customHint"></small></span>
+                </label>
+              </div>
+            </fieldset>
+
+            <!-- 3a. The trainer's configuration (Business Rules 13–20): what the trainer provides for each model (read without any code), then
+                 the access code and Unlock, for every model the trainer provides and the labs do not use yet. The code is sent once, cleared at
+                 once and never stored by the page; the keys never reach it. -->
             <section class="trainer-bar" id="trainer-bar" aria-labelledby="trainer-title" aria-busy="false">
               <div class="trainer-bar-head">
-                <span class="model-card-ico" aria-hidden="true"><svg class="ico"><use href="#i-ticket"/></svg></span>
                 <h4 id="trainer-title" data-i18n="trainer.title"></h4>
                 <span class="pill running" id="trainer-simulated" data-i18n="trainer.simulated" hidden></span>
                 <button class="btn btn-sm" type="button" id="trainer-refresh"><svg class="ico"><use href="#i-reset"/></svg><span data-i18n="trainer.refresh"></span></button>
@@ -208,23 +256,21 @@
                 <span id="trainer-error-text"></span>
                 <button class="btn btn-sm" type="button" id="trainer-error-action" hidden></button>
               </div>
-              <div class="trainer-actions" id="trainer-actions">
-                <button class="btn btn-primary" type="button" id="trainer-unlock" aria-describedby="trainer-unlock-hint"><svg class="ico"><use href="#i-key"/></svg><span data-i18n="trainer.unlock"></span></button>
-                <p class="field-hint" id="trainer-unlock-hint"></p>
-              </div>
+              <ul class="trainer-offers" id="trainer-offers"></ul>
               <div class="trainer-code" id="trainer-code" hidden>
                 <label for="trainer-code-input" data-i18n="trainer.codeLabel"></label>
                 <div class="trainer-code-row">
-                  <input id="trainer-code-input" type="text" autocomplete="off" autocapitalize="characters" spellcheck="false" maxlength="16" aria-describedby="trainer-code-hint trainer-code-error">
-                  <button class="btn btn-primary" type="button" id="trainer-code-submit" data-i18n="trainer.codeSubmit"></button>
-                  <button class="btn" type="button" id="trainer-code-cancel" data-i18n="trainer.codeCancel"></button>
+                  <input id="trainer-code-input" type="text" autocomplete="off" autocapitalize="characters" spellcheck="false" maxlength="16" placeholder="•••••" aria-describedby="trainer-code-hint trainer-code-error">
+                  <button class="btn btn-primary" type="button" id="trainer-unlock"><svg class="ico"><use href="#i-key"/></svg><span data-i18n="trainer.unlock"></span></button>
                 </div>
                 <p class="field-hint" id="trainer-code-hint"></p>
                 <p class="field-error" id="trainer-code-error" role="alert" hidden></p>
               </div>
+              <p class="trainer-done" id="trainer-done" hidden><svg class="ico" aria-hidden="true"><use href="#i-check"/></svg><span id="trainer-done-text"></span></p>
             </section>
 
-            <div class="model-cards">
+            <!-- 3b. My configuration: one Azure OpenAI form per model, each saved and used with its own button. -->
+            <div class="model-cards" id="models-custom-pane" hidden>
               <!-- LLM -->
               <article class="model-card" id="model-card-chat" data-kind="chat" aria-labelledby="model-title-chat">
                 <header class="model-card-head">
@@ -236,29 +282,7 @@
                   <span class="model-card-status"><i class="status-dot" id="model-dot-chat" aria-hidden="true"></i><span id="model-state-chat"></span></span>
                 </header>
 
-                <!-- Mode switch: the pressed button is the mode the labs use; a refused switch keeps it. -->
-                <div class="seg model-mode" role="group" data-i18n-aria="models.chat.modeAria">
-                  <button type="button" data-model-mode="trainer" aria-pressed="false" aria-controls="model-trainer-chat"><svg class="ico" aria-hidden="true"><use href="#i-ticket"/></svg><span data-i18n="models.modeTrainer"></span></button>
-                  <button type="button" data-model-mode="custom" aria-pressed="true" aria-controls="model-custom-chat"><svg class="ico" aria-hidden="true"><use href="#i-user"/></svg><span data-i18n="models.modeCustom"></span></button>
-                </div>
-                <p class="sr-only" id="model-live-chat" aria-live="polite"></p>
-
-                <!-- The trainer's configuration of this kind (overview, no code): what Unlock would bring, and the tick that selects it for Unlock. -->
-                <div class="model-offer" id="model-offer-chat" hidden></div>
-
-                <div class="notice notice-warn model-notice" id="model-applied-chat" hidden>
-                  <span data-i18n="models.notApplied"></span>
-                  <button class="btn btn-sm" type="button" data-action="reapply-model" data-i18n="models.reapply"></button>
-                </div>
-
-                <!-- Trainer configuration in use: read-only summary of the profile saved at the last unlock, or "not unlocked yet". -->
-                <div class="model-trainer" id="model-trainer-chat" hidden>
-                  <p class="model-trainer-empty" id="model-trainer-empty-chat"></p>
-                  <dl class="model-summary" id="model-trainer-summary-chat" hidden></dl>
-                  <ul class="model-overrides" id="model-trainer-env-chat"></ul>
-                </div>
-
-                <!-- My configuration: the Azure OpenAI form of this kind, saved with the card's Save button. -->
+                <!-- My configuration: the Azure OpenAI form of this kind, saved and used with the card's button. -->
                 <div class="model-custom" id="model-custom-chat">
                   <p class="notice model-notice" id="model-custom-note-chat" hidden></p>
 
@@ -306,7 +330,7 @@
                   </div>
 
                   <div class="model-card-foot">
-                    <button class="btn btn-primary" type="button" data-action="save-model" data-i18n-aria="models.chat.saveAria"><svg class="ico"><use href="#i-check"/></svg><span data-i18n="settings.save"></span></button>
+                    <button class="btn btn-primary" type="button" data-action="save-model" data-i18n-aria="models.chat.saveAria"><svg class="ico"><use href="#i-check"/></svg><span data-i18n="models.chat.save"></span></button>
                   </div>
                 </div>
               </article>
@@ -322,25 +346,6 @@
                   <span class="model-card-status"><i class="status-dot" id="model-dot-embedding" aria-hidden="true"></i><span id="model-state-embedding"></span></span>
                 </header>
 
-                <div class="seg model-mode" role="group" data-i18n-aria="models.embedding.modeAria">
-                  <button type="button" data-model-mode="trainer" aria-pressed="false" aria-controls="model-trainer-embedding"><svg class="ico" aria-hidden="true"><use href="#i-ticket"/></svg><span data-i18n="models.modeTrainer"></span></button>
-                  <button type="button" data-model-mode="custom" aria-pressed="true" aria-controls="model-custom-embedding"><svg class="ico" aria-hidden="true"><use href="#i-user"/></svg><span data-i18n="models.modeCustom"></span></button>
-                </div>
-                <p class="sr-only" id="model-live-embedding" aria-live="polite"></p>
-
-                <!-- The trainer's configuration of this kind (overview, no code): what Unlock would bring, and the tick that selects it for Unlock. -->
-                <div class="model-offer" id="model-offer-embedding" hidden></div>
-
-                <div class="notice notice-warn model-notice" id="model-applied-embedding" hidden>
-                  <span data-i18n="models.notApplied"></span>
-                  <button class="btn btn-sm" type="button" data-action="reapply-model" data-i18n="models.reapply"></button>
-                </div>
-
-                <div class="model-trainer" id="model-trainer-embedding" hidden>
-                  <p class="model-trainer-empty" id="model-trainer-empty-embedding"></p>
-                  <dl class="model-summary" id="model-trainer-summary-embedding" hidden></dl>
-                  <ul class="model-overrides" id="model-trainer-env-embedding"></ul>
-                </div>
 
                 <div class="model-custom" id="model-custom-embedding">
                   <p class="notice model-notice" id="model-custom-note-embedding" hidden></p>
@@ -404,7 +409,7 @@
                   </div>
 
                   <div class="model-card-foot">
-                    <button class="btn btn-primary" type="button" data-action="save-model" data-i18n-aria="models.embedding.saveAria"><svg class="ico"><use href="#i-check"/></svg><span data-i18n="settings.save"></span></button>
+                    <button class="btn btn-primary" type="button" data-action="save-model" data-i18n-aria="models.embedding.saveAria"><svg class="ico"><use href="#i-check"/></svg><span data-i18n="models.embedding.save"></span></button>
                   </div>
                 </div>
               </article>
