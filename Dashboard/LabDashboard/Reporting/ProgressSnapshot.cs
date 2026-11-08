@@ -58,13 +58,13 @@ public static class ProgressSnapshot
     /// </summary>
     public static LabProgressSnapshot ForLab(string labId, IReadOnlyList<RunRecord> runs, IReadOnlyCollection<int>? bonusScenarios = null)
     {
-        // History is newest first.
-        RunRecord[] startRuns = runs.Where(r => r.Target == RunTarget.Start).ToArray();
+        // History is newest first. The manual records of validations by hand count for the progress, never as runs.
+        RunRecord[] startRuns = runs.Where(r => r.Target == RunTarget.Start && ExerciseProgress.IsRun(r)).ToArray();
         RunRecord? firstPassed = ExerciseProgress.CompletingRun(runs, bonusScenarios);
         RunRecord? bonusPassed = ExerciseProgress.BonusCompletingRun(runs, bonusScenarios);
-        RunRecord? last = runs.FirstOrDefault();
+        RunRecord? last = runs.FirstOrDefault(ExerciseProgress.IsRun);
 
-        string state = firstPassed is not null ? "completed" : startRuns.Length > 0 ? "inProgress" : "notStarted";
+        string state = firstPassed is not null ? "completed" : runs.Any(r => r.Target == RunTarget.Start) ? "inProgress" : "notStarted";
         return new LabProgressSnapshot(
             labId,
             state,

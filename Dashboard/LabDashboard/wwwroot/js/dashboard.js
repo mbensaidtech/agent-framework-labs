@@ -32,10 +32,9 @@ const state = {
   eventSource: null, clockTimer: null, runId: null, runTarget: null,
   record: null, recordIsHistory: false, target: "start",
   // Scenarios of the current lab per project ({ start, solution }, GET /labs/{id}/scenarios) and the ticked ones per "lab:target":
-  // { set, runnable, touched } — untouched, the selection follows the default (see defaultSelection); ticked by hand, it lasts until
-  // the run ends, then the default applies again with the new results. `carried`, per "lab:target": the scenarios ticked for the last
-  // run but left out because they were not implemented, still ticked until they run.
-  scenarios: null, selections: new Map(), carried: new Map(),
+  // { set } — nothing is ticked by default (a run costs tokens): the learner ticks what to run; when a run ends, the scenarios that
+  // passed in it are unticked, the others stay ticked (see selectionFor).
+  scenarios: null, selections: new Map(),
   // Scenarios whose validation by hand is being saved (their button is disabled meanwhile).
   validating: new Set(),
   // AI models settings: status from the server, a refused switch per kind ("trainer" | "custom": what it opened), kinds with a request in flight.
@@ -457,42 +456,36 @@ function withRequiredIfRunnable(numbers, scenarios) {
   return result;
 }
 
-/**
- * The default selection: what is left to do, never a scenario already passed (unless a ticked one requires it).
- * - the runnable scenarios not passed yet (failed, or never run: a scenario just written is ticked);
- * - the next step of the exercise: the first scenario and each scenario that follows a passed one, when not passed yet, ticked even
- *   when not implemented (it runs once written) — except a bonus scenario: it is optional, ticked only once written.
- */
-function defaultSelection(scenarios) {
-  const picks = scenarios.filter((s, i) => !passed(s) && (s.runnable || (!s.bonus && (i === 0 || passed(scenarios[i - 1])))));
-  return withRequiredIfRunnable(picks.map((s) => s.number), scenarios);
+/** What is left to do ("To do" button): the runnable scenarios not passed yet, with the scenarios they require. */
+function toDoSelection(scenarios) {
+  return withRequiredIfRunnable(scenarios.filter((s) => s.runnable && !passed(s)).map((s) => s.number), scenarios);
 }
 
 const sameSet = (a, b) => a.size === b.size && [...a].every((n) => b.has(n));
 
 /**
- * The scenarios ticked for the next run. Untouched, the default, computed again from Program.cs and the last results, with the
- * scenarios carried from the last run. Ticked by hand, the choice lasts until the run ends, kept in line with Program.cs read again:
- * a scenario that just became runnable is ticked when it has not passed, and a ticked one that became runnable ticks what it requires.
- * Any scenario can be ticked; one that cannot run is left out of the run (see renderScenarios).
+ * The scenarios ticked for the next run: none by default (no scenario is run, and no token spent, unless the learner asks for it).
+ * The learner ticks any scenario; one that cannot run (not implemented) is left out of the run (see renderScenarios). The choice
+ * lasts across runs: a scenario that passed (or that the learner validated by hand) is unticked, the others stay ticked.
  */
 function selectionFor(target = state.target) {
   const scenarios = state.scenarios?.[target] ?? [];
   const key = `${state.currentId}:${target}`;
   const known = byNumber(scenarios);
-  const runnable = runnableSet(scenarios);
   let entry = state.selections.get(key);
-  if (!entry?.touched) {
-    const carried = (state.carried.get(key) ?? []).filter((n) => known.has(n) && !passed(known.get(n)));
-    entry = { set: withRequiredIfRunnable([...defaultSelection(scenarios), ...carried], scenarios), runnable, touched: false };
-  } else {
-    const ready = [...runnable].filter((n) => !entry.runnable.has(n) && (!passed(known.get(n)) || entry.set.has(n)));
-    for (const number of withRequired(ready, scenarios)) entry.set.add(number);
-    for (const number of [...entry.set]) if (!known.has(number)) entry.set.delete(number);
-    entry.runnable = runnable;
+  if (!entry) {
+    entry = { set: new Set() };
+    state.selections.set(key, entry);
   }
-  state.selections.set(key, entry);
+  // A scenario removed from Program.cs meanwhile cannot be asked for.
+  for (const number of [...entry.set]) if (!known.has(number)) entry.set.delete(number);
   return entry;
+}
+
+/** Unticks scenarios of a lab and project (they passed, or were validated by hand): no need to run them again. */
+function untick(labId, target, numbers) {
+  const entry = state.selections.get(`${labId}:${target}`);
+  if (entry) for (const number of numbers) entry.set.delete(number);
 }
 
 function renderScenarios() {
@@ -541,7 +534,10 @@ function renderScenarios() {
       badges.append(todo);
     }
     const last = s.last ? pill(s.last.status, t(`scenarios.last.${s.last.status}`)) : pill("none", t("scenarios.neverRun"));
-    if (s.last) last.title = t(s.last.validatedByHand ? "scenarios.lastAtValidated" : "scenarios.lastAt", { date: fmtDate(s.last.startedAt) });
+    if (s.last) {
+      last.title = s.last.manual ? t("scenarios.validation.validatedAt", { date: fmtDate(s.last.startedAt) })
+        : t(s.last.validatedByHand ? "scenarios.lastAtValidated" : "scenarios.lastAt", { date: fmtDate(s.last.startedAt) });
+    }
     const validation = validationButton(s, running);
     if (validation) badges.append(validation);
     badges.append(last);
@@ -569,20 +565,20 @@ function renderScenarios() {
     willRun.length && leftOut.length ? t("scenarios.hintNotImplemented", { list: leftOut.join(", ") }) : null,
     rerun.length ? t("scenarios.hintRerun", { list: rerun.join(", ") }) : null,
   ].filter(Boolean).join(" ");
-  main.querySelector('[data-action="select-default"]').disabled = running || sameSet(set, defaultSelection(scenarios));
+  const toDo = toDoSelection(scenarios);
+  main.querySelector('[data-action="select-default"]').disabled = running || !toDo.size || sameSet(set, toDo);
   main.querySelector('[data-action="select-implemented"]').disabled = running || !runnable.length;
   main.querySelector('[data-action="select-none"]').disabled = running || !selected.length;
   runButton.disabled = running || !willRun.length;
 }
 
 /**
- * The discreet button that validates by hand a failed scenario of the exercise (its program ran to the end, only the output checks
- * differ from the reference), or removes that validation (the scenario counts again with the result of its checks). Null otherwise.
+ * The discreet button that validates by hand a scenario of the exercise not passed yet (failed, or not run yet) that the learner
+ * considers correct, or removes that validation (the scenario counts again with the result of its checks). Null otherwise.
  */
 function validationButton(scenario, running) {
-  const last = scenario.last;
-  if (state.target !== "start" || !last || !(last.canValidate || last.validatedByHand)) return null;
-  const undo = !!last.validatedByHand;
+  const undo = !!scenario.last?.validatedByHand;
+  if (state.target !== "start" || !(scenario.canValidate || undo)) return null;
   const button = el("button", `scenario-validate${undo ? " undo" : ""}`);
   button.type = "button";
   button.dataset.validate = undo ? "remove" : "add";
@@ -606,6 +602,7 @@ async function toggleValidation(number, remove) {
       return;
     }
     toast(t(remove ? "scenarios.validation.removed" : "scenarios.validation.added", { number }));
+    if (!remove) untick(labId, "start", [number]); // it counts as passed: no need to run it
   } catch {
     toast(t("scenarios.validation.error.failed"));
   } finally {
@@ -634,7 +631,6 @@ function wireScenarios(main) {
     const scenarios = currentScenarios();
     const entry = selectionFor();
     const number = Number(check.dataset.number);
-    entry.touched = true;
     if (check.checked) {
       for (const required of withRequiredIfRunnable([number], scenarios)) entry.set.add(required);
     } else {
@@ -643,17 +639,15 @@ function wireScenarios(main) {
     renderScenarios();
   });
   main.querySelector('[data-action="select-default"]').addEventListener("click", () => {
-    state.selections.delete(`${state.currentId}:${state.target}`);
-    state.carried.delete(`${state.currentId}:${state.target}`);
+    state.selections.set(`${state.currentId}:${state.target}`, { set: toDoSelection(currentScenarios()) });
     renderScenarios();
   });
   main.querySelector('[data-action="select-implemented"]').addEventListener("click", () => {
-    const runnable = runnableSet(currentScenarios());
-    state.selections.set(`${state.currentId}:${state.target}`, { set: new Set(runnable), runnable, touched: true });
+    state.selections.set(`${state.currentId}:${state.target}`, { set: runnableSet(currentScenarios()) });
     renderScenarios();
   });
   main.querySelector('[data-action="select-none"]').addEventListener("click", () => {
-    state.selections.set(`${state.currentId}:${state.target}`, { set: new Set(), runnable: runnableSet(currentScenarios()), touched: true });
+    state.selections.set(`${state.currentId}:${state.target}`, { set: new Set() });
     renderScenarios();
   });
 }
@@ -767,10 +761,8 @@ function attachToRun(runId, target) {
     closeStream();
     const record = JSON.parse(e.data).result;
     state.runId = null;
-    // The choice made by hand was for this run: the next one starts again from the default (a scenario that just passed is unticked,
-    // the one after it is ticked), keeping the ticked scenarios left out because they were not implemented.
-    state.selections.delete(`${record.labId}:${record.target}`);
-    state.carried.set(`${record.labId}:${record.target}`, (record.scenarios ?? []).filter((x) => x.notImplemented).map((x) => x.number));
+    // A scenario that passed in this run is unticked (no need to run it again, and spend tokens); the others stay ticked.
+    untick(record.labId, record.target, (record.scenarios ?? []).filter((x) => x.status === "passed").map((x) => x.number));
     finishRun(record);
     loadScenarios(); // their last result changed
     await refreshLabs();

@@ -14,9 +14,10 @@ namespace LabDashboard.Execution;
 /// A run without scenario results never completes a bonus (nothing tells which scenarios it ran).
 /// </para>
 /// <para>
-/// <b>Manual validation</b>: a failed scenario that the learner validated by hand (<see cref="ScenarioResult.ValidatedAt"/>) counts as
-/// passed everywhere (<see cref="IsValidated"/>, <see cref="EffectiveStatus"/>), exactly as if its checks had passed: the result of the
-/// checks (<see cref="ScenarioResult.Status"/>, <see cref="RunRecord.Status"/>) is kept as it was.
+/// <b>Manual validation</b>: a scenario that the learner validated by hand (<see cref="ScenarioResult.ValidatedAt"/>) counts as passed
+/// everywhere (<see cref="IsValidated"/>, <see cref="EffectiveStatus"/>), exactly as if its checks had passed: the result of the checks
+/// (<see cref="ScenarioResult.Status"/>, <see cref="RunRecord.Status"/>) is kept as it was. A scenario validated before it had a result
+/// is a <see cref="RunRecord.Manual"/> record: an attempt for the progress, never counted as a run (<see cref="IsRun"/>).
 /// </para>
 /// </summary>
 public static class ExerciseProgress
@@ -25,27 +26,29 @@ public static class ExerciseProgress
     public static bool IsValidated(ScenarioResult scenario) =>
         scenario.Status == ScenarioStatus.Passed || (scenario.Status == ScenarioStatus.Failed && scenario.ValidatedAt is not null);
 
+    /// <summary>A real run (not the <see cref="RunRecord.Manual"/> record of a validation by hand): what the history and the counts show.</summary>
+    public static bool IsRun(RunRecord run) => !run.Manual;
+
     /// <summary>The status a scenario counts with: <see cref="ScenarioStatus.Passed"/> when validated by hand, its own status otherwise.</summary>
     public static ScenarioStatus EffectiveStatus(ScenarioResult scenario) => IsValidated(scenario) ? ScenarioStatus.Passed : scenario.Status;
 
     /// <summary>
-    /// The status a run counts with: <see cref="RunStatus.Passed"/> when it failed only on scenarios the learner validated by hand
-    /// (every selected scenario passed or was validated), its own status otherwise.
+    /// The status a run counts with: <see cref="RunStatus.Passed"/> when it failed (or timed out) only on scenarios the learner validated
+    /// by hand (every selected scenario passed or was validated), its own status otherwise.
     /// </summary>
     public static RunStatus EffectiveStatus(RunRecord run) =>
-        run.Status == RunStatus.Failed && run.Scenarios is { Count: > 0 } scenarios && scenarios.Any(s => s.ValidatedAt is not null)
+        run.Status is RunStatus.Failed or RunStatus.TimedOut && run.Scenarios is { Count: > 0 } scenarios && scenarios.Any(s => s.ValidatedAt is not null)
             && scenarios.Where(s => s.Status != ScenarioStatus.Skipped).All(IsValidated)
             ? RunStatus.Passed
             : run.Status;
 
     /// <summary>
-    /// Whether the learner may validate a scenario of a run by hand: a failed scenario of an exercise (Start) run whose program ran to
-    /// the end and failed only on its output checks (failure stage <c>checks</c>). A build error, a crash, a timeout or a scenario
-    /// that did not run cannot be validated: only a difference between the output and the expected one can.
+    /// Whether the learner may validate a scenario result of a run by hand: a failed scenario of an exercise (Start) run, whatever made
+    /// it fail (output checks, crash, timeout). A scenario without a result (never run, or stopped before it ran) is validated with a
+    /// <see cref="RunRecord.Manual"/> record instead (<see cref="ManualValidation"/>).
     /// </summary>
     public static bool CanValidateManually(RunRecord run, ScenarioResult scenario) =>
-        run.Target == RunTarget.Start && run.Status == RunStatus.Failed && run.FailureStage == "checks"
-            && scenario.Status == ScenarioStatus.Failed && scenario.Errors.Count == 0;
+        run.Target == RunTarget.Start && scenario.Status == ScenarioStatus.Failed;
 
     /// <summary>The attempts, oldest first: the Start runs that went to the end (a cancelled run proves nothing either way).</summary>
     public static RunRecord[] Attempts(IEnumerable<RunRecord> runsNewestFirst) =>

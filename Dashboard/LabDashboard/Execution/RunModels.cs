@@ -46,9 +46,9 @@ public sealed record ScenarioResult(int Number, string Title, ScenarioStatus Sta
     public bool NotImplemented { get; init; }
 
     /// <summary>
-    /// Set when the learner validated this failed scenario by hand (its output differs from the reference in a way they accept): the
-    /// scenario then counts as passed (<see cref="ExerciseProgress.IsValidated"/>). <see cref="Status"/> stays the result of the checks,
-    /// so that removing the validation gives the real result back. Only on a <see cref="ExerciseProgress.CanValidateManually"/> scenario.
+    /// Set when the learner validated this scenario by hand (they consider it correct): the scenario then counts as passed
+    /// (<see cref="ExerciseProgress.IsValidated"/>). On a failed scenario, <see cref="Status"/> stays the result of the checks, so that
+    /// removing the validation gives the real result back; on the scenario of a <see cref="RunRecord.Manual"/> record, it is passed.
     /// </summary>
     public DateTimeOffset? ValidatedAt { get; init; }
 }
@@ -101,6 +101,15 @@ public sealed record RunRecord
     public IReadOnlyList<string> Errors { get; init; } = [];
     public IReadOnlyList<string> BuildWarnings { get; init; } = [];
     public IReadOnlyList<LogLine> Log { get; init; } = [];
+
+    /// <summary>
+    /// Not a run: the record of a scenario the learner validated by hand before it had a result (never run, or stopped before it ran).
+    /// It lists every scenario of the program, the validated one passed (<see cref="ScenarioResult.ValidatedAt"/>), the others skipped,
+    /// so that the exercise progress counts it like a run of that scenario. It is hidden from the history and the run counts, and removed
+    /// when the validation is cancelled.
+    /// </summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
+    public bool Manual { get; init; }
 }
 
 /// <summary>Event pushed to the browser (Server-Sent Events) while a run progresses.</summary>

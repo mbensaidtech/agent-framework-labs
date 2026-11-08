@@ -154,8 +154,9 @@ api.MapGet("/labs/{id}", (string id, string? lang, LabCatalog catalog, RunHistor
             ["solution"] = $"cd {lab.Path}/{Path.GetDirectoryName(lab.SolutionProject)} && dotnet run",
             ["scenarios"] = $"dotnet run -- {LabScenarios.ScenariosOption} 1,3      dotnet run -- {LabScenarios.ListOption}",
         },
-        runs.FirstOrDefault(),
-        runs.Select(r => r with { Log = [] }).ToList()));
+        // The manual records of validations by hand are not runs: neither the last run nor the history shows them.
+        runs.FirstOrDefault(ExerciseProgress.IsRun),
+        runs.Where(ExerciseProgress.IsRun).Select(r => r with { Log = [] }).ToList()));
 });
 
 // The learner's journey (states, XP, rank, milestones, distinctions, next mission), recomputed from the history: read-only.
@@ -202,24 +203,26 @@ api.MapGet("/labs/{id}/scenarios", (string id, LabCatalog catalog, RunHistorySto
                 // Optional scenario: the exercise is completed without it ("Done"), with it "Done+" (labs.json bonusScenarios)
                 Bonus = lab.BonusScenarios.Contains(scenario.Number),
                 // Status: the status it counts with (passed when validated by hand). ValidatedByHand / CanValidate: for the learner's
-                // button only (validate a failure of the output checks, or remove that validation); never sent to the admin dashboard.
+                // button only (validate a scenario of the exercise not passed yet, failed or without a result, or remove that validation);
+                // never sent to the admin dashboard.
+                CanValidate = target == RunTarget.Start && !(last.TryGetValue(scenario.Number, out var current) && current.Status == ScenarioStatus.Passed),
                 Last = last.TryGetValue(scenario.Number, out var result)
                     ? new
                     {
                         result.Status,
-                        result.Run.RunId,
+                        RunId = result.Run.Manual ? null : result.Run.RunId,
                         result.Run.StartedAt,
                         ValidatedByHand = result.Scenario.ValidatedAt is not null,
-                        CanValidate = result.Scenario.ValidatedAt is null && ExerciseProgress.CanValidateManually(result.Run, result.Scenario),
+                        result.Run.Manual,
                     }
                     : null,
             });
         }));
 });
 
-// Validation by hand of a scenario of the exercise (its output differs from the reference in a way the learner accepts): the scenario
-// counts as passed everywhere (lab list, journey, progress sent to the admin dashboard), the result of its checks is kept. DELETE removes
-// it: the scenario counts again with the result of its checks. Neither changes how the runs or their checks are made.
+// Validation by hand of a scenario of the exercise that the learner considers correct, failed or not run yet: the scenario counts as
+// passed everywhere (lab list, journey, progress sent to the admin dashboard), the result of its checks is kept. DELETE removes it: the
+// scenario counts again with the result of its checks (or has no result again). Neither changes how the runs or their checks are made.
 api.MapPost("/labs/{id}/scenarios/{number:int}/validation", async (string id, int number, LabCatalog catalog, RunHistoryStore history) =>
 {
     if (catalog.Find(id) is not { } lab)
@@ -227,7 +230,8 @@ api.MapPost("/labs/{id}/scenarios/{number:int}/validation", async (string id, in
         return Results.NotFound();
     }
 
-    ManualValidationOutcome outcome = await ManualValidation.ValidateAsync(history, lab.Id, number, DateTimeOffset.Now);
+    ManualValidationOutcome outcome = await ManualValidation.ValidateAsync(
+        history, lab.Id, catalog.Scenarios(lab, RunTarget.Start), number, DateTimeOffset.Now);
     if (outcome == ManualValidationOutcome.Changed)
     {
         reporting.ProgressChanged();
@@ -235,8 +239,7 @@ api.MapPost("/labs/{id}/scenarios/{number:int}/validation", async (string id, in
 
     return outcome switch
     {
-        ManualValidationOutcome.NoResult => Results.Conflict(new { error = "noResult" }),
-        ManualValidationOutcome.NotEligible => Results.Conflict(new { error = "notEligible" }),
+        ManualValidationOutcome.UnknownScenario => Results.NotFound(new { error = "unknownScenario" }),
         _ => Results.Ok(new { validated = true }),
     };
 });
@@ -721,14 +724,14 @@ internal sealed record LabSummary(
 {
     public static LabSummary From(LabDefinition lab, IReadOnlyList<RunRecord> runs, LabRun? activeRun, bool hasCompletedCopy, LabStageSummary? stage)
     {
-        RunRecord? lastStart = runs.FirstOrDefault(r => r.Target == RunTarget.Start);
+        RunRecord? lastStart = runs.FirstOrDefault(r => r.Target == RunTarget.Start && ExerciseProgress.IsRun(r));
         RunRecord? lastSolution = runs.FirstOrDefault(r => r.Target == RunTarget.Solution);
 
         // Progress of the exercise itself (Start project): completed once every scenario but the bonus ones passed, completed with its
         // bonus ("Done+") once the bonus scenarios passed too (ExerciseProgress).
         string progress = ExerciseProgress.BonusCompletingRun(runs, lab.BonusScenarios) is not null ? "completedPlus"
             : ExerciseProgress.CompletingRun(runs, lab.BonusScenarios) is not null ? "completed"
-            : lastStart is not null ? "inProgress"
+            : runs.Any(r => r.Target == RunTarget.Start) ? "inProgress"
             : "notStarted";
 
         return new LabSummary(

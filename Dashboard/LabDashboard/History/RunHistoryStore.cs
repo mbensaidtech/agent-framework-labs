@@ -73,11 +73,11 @@ public sealed class RunHistoryStore
     }
 
     /// <summary>
-    /// Replaces runs of a lab in one atomic write: <paramref name="update"/> gets each run and returns it changed, or the same instance
-    /// to leave it as it is. Returns the number of runs changed (0: nothing written). When the file cannot be written, the runs stay
-    /// unchanged in memory too.
+    /// Replaces runs of a lab in one atomic write: <paramref name="update"/> gets each run and returns it changed, the same instance
+    /// to leave it as it is, or null to remove it. Returns the number of runs changed or removed (0: nothing written). When the file
+    /// cannot be written, the runs stay unchanged in memory too.
     /// </summary>
-    public async Task<int> UpdateLabAsync(string labId, Func<RunRecord, RunRecord> update)
+    public async Task<int> UpdateLabAsync(string labId, Func<RunRecord, RunRecord?> update)
     {
         await _gate.WaitAsync();
         try
@@ -93,15 +93,16 @@ public sealed class RunHistoryStore
                     return 0;
                 }
 
-                updated = runs.Select(update).ToList();
-                changed = updated.Where((run, i) => !ReferenceEquals(run, runs[i])).Count();
+                List<RunRecord?> next = runs.Select(update).ToList();
+                changed = next.Where((run, i) => !ReferenceEquals(run, runs[i])).Count();
+                updated = next.OfType<RunRecord>().ToList();
                 if (changed == 0)
                 {
                     return 0;
                 }
 
-                Dictionary<string, List<RunRecord>> next = new(_runs, StringComparer.OrdinalIgnoreCase) { [labId] = updated };
-                json = JsonSerializer.Serialize(next, JsonOptions);
+                Dictionary<string, List<RunRecord>> all = new(_runs, StringComparer.OrdinalIgnoreCase) { [labId] = updated };
+                json = JsonSerializer.Serialize(all, JsonOptions);
             }
 
             await WriteAsync(json);

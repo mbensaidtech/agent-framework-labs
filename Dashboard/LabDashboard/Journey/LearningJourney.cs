@@ -55,7 +55,8 @@ public static class LearningJourney
     /// <summary>Journey of one lab from its runs (newest first, as kept by the history).</summary>
     public static LabJourney ForLab(LabDefinition lab, IReadOnlyList<RunRecord> runs, bool running)
     {
-        RunRecord[] startRuns = runs.Where(r => r.Target == RunTarget.Start).ToArray();
+        // The manual records of validations by hand count for the completion, never as runs or attempts of the learner.
+        RunRecord[] startRuns = runs.Where(r => r.Target == RunTarget.Start && ExerciseProgress.IsRun(r)).ToArray();
         // An attempt is a Start run that went to the end: a cancelled run proves nothing either way. With the scenario selection,
         // the exercise is completed by the attempt that validated its last scenario (ExerciseProgress).
         RunRecord[] attempts = ExerciseProgress.Attempts(runs);
@@ -69,17 +70,20 @@ public static class LearningJourney
         // An attempt whose only failures are bonus scenarios still passed the exercise: a bonus never puts a lab back to "to resume".
         bool Passed(RunRecord run) => ExerciseProgress.PassedExercise(run, bonus);
 
+        RunRecord[] realAttempts = attempts.Where(ExerciseProgress.IsRun).ToArray();
+        RunRecord[] realUntilCompletion = untilCompletion.Where(ExerciseProgress.IsRun).ToArray();
         string state = firstPassed is not null
-            ? Passed(attempts[^1]) ? JourneyState.Completed : JourneyState.ToResume
-            : startRuns.Length > 0 ? JourneyState.InProgress : JourneyState.NotStarted;
+            ? realAttempts.Length == 0 || Passed(realAttempts[^1]) || realAttempts[^1].StartedAt < firstPassed.StartedAt
+                ? JourneyState.Completed : JourneyState.ToResume
+            : startRuns.Length > 0 || attempts.Length > 0 ? JourneyState.InProgress : JourneyState.NotStarted;
 
         int totalChecks = lab.Expectations.Count;
         // Checks passed at least once: a run of a few scenarios evaluates only their checks.
         int bestChecks = Math.Min(totalChecks, startRuns.SelectMany(r => r.Checks.Where(c => c.Passed).Select(c => c.Id)).Distinct().Count());
         // First try: no failed attempt until the exercise was completed (one run of every scenario, or several runs of a few).
-        bool firstTry = firstPassed is not null && untilCompletion.All(Passed);
+        bool firstTry = firstPassed is not null && realUntilCompletion.All(Passed);
         bool solo = firstPassed is not null && !runs.Any(r => r.Target == RunTarget.Solution && r.StartedAt < firstPassed.StartedAt);
-        bool persistence = firstPassed is not null && untilCompletion.Count(r => !Passed(r)) >= PersistenceAttempts;
+        bool persistence = firstPassed is not null && realUntilCompletion.Count(r => !Passed(r)) >= PersistenceAttempts;
 
         int baseXp = BaseXp(lab.Level);
         int xp = firstPassed is not null
@@ -89,9 +93,9 @@ public static class LearningJourney
         // What the next passing attempt would earn: the bonuses still within reach.
         int potentialXp = firstPassed is not null
             ? xp
-            : baseXp + (attempts.All(Passed) ? FirstTryBonus : 0) + (runs.Any(r => r.Target == RunTarget.Solution) ? 0 : SoloBonus);
+            : baseXp + (realAttempts.All(Passed) ? FirstTryBonus : 0) + (runs.Any(r => r.Target == RunTarget.Solution) ? 0 : SoloBonus);
 
-        return new LabJourney(lab.Id, lab.Number, lab.Track, lab.Level, state, running, attempts.Length, bestChecks, totalChecks, xp, potentialXp,
+        return new LabJourney(lab.Id, lab.Number, lab.Track, lab.Level, state, running, realAttempts.Length, bestChecks, totalChecks, xp, potentialXp,
             firstTry, solo, persistence, firstPassed?.StartedAt, startRuns.FirstOrDefault()?.StartedAt)
         {
             BonusScenarios = bonus.Count,

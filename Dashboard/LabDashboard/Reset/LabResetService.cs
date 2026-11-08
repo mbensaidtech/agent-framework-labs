@@ -255,7 +255,7 @@ public sealed class LabResetService(
             lab.Id,
             FolderName(lab),
             ProgressSnapshot.ForLab(lab.Id, runs).State,
-            runs.Count(r => r.Target == RunTarget.Start),
+            runs.Count(r => r.Target == RunTarget.Start && ExerciseProgress.IsRun(r)),
             runs.Count(r => r.Target == RunTarget.Solution),
             copy,
             block);
