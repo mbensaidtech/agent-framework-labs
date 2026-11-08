@@ -6,8 +6,8 @@ using LabDashboard.Settings;
 
 namespace LabDashboard.TrainerModels;
 
-// What the Admin Dashboard answers on GET /api/v1/model-configs (contract v1, "Admin API contract v1" in
-// specs/dashboard-model-configuration/spec.md), as the dashboard reads it, and the overview built from it for the page (Business Rule 17).
+// What the Admin Dashboard answers on GET /api/v1/model-configs (contract v1), as the dashboard
+// reads it, and the overview built from it for the page (Business Rule 17).
 // Nothing here is a secret: the keys only travel inside the envelope, which only the decryptor (T11) opens.
 
 /// <summary>Routes and values of the Admin API contract v1 for the AI model configurations.</summary>

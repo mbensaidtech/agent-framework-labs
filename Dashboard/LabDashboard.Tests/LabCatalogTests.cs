@@ -12,7 +12,7 @@ public class LabCatalogTests
     {
         LabCatalog catalog = LoadRealCatalog();
 
-        // Catalog order = the learning path, stage by stage (specs/learning-path-stages, checked in LearningPathTests).
+        // Catalog order = the learning path, stage by stage (checked in LearningPathTests).
         Assert.Equal(21, catalog.Labs.Count);
         Assert.Equal(catalog.Labs, catalog.LearningPath);
         foreach (LabDefinition lab in catalog.Labs)

@@ -7,7 +7,7 @@ using LabDashboard.Reporting;
 namespace LabDashboard.Reset;
 
 /// <summary>
-/// Puts labs back to "Not started" (specs/dashboard-exercise-reset): removes their runs from the history and their
+/// Puts labs back to "Not started": removes their runs from the history and their
 /// _StartCompleted folder, nothing else — Start/, Solution/, the instructions and the settings are never touched.
 /// A reset needs a confirmation issued by a preview of exactly those labs, with the lab folder name typed for one lab,
 /// or the random code of the preview for several: short-lived and single use, so a double click or a replayed request never resets twice.

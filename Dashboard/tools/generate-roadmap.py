@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Writes the learning path of labs.json into the training roadmap (specs/learning-path-stages).
+"""Writes the learning path of labs.json into the training roadmap.
 
 labs.json is the single source of truth of the path: its stages, and the order of its labs. The roadmap
 (Roadmap-Formation-Session2.html, at the root of the repository) reads them from a JSON block that this script

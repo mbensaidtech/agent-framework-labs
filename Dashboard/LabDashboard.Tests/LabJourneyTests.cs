@@ -210,7 +210,7 @@ public class LabJourneyTests
     [Fact]
     public void The_milestones_are_the_stages_of_the_path_and_the_labs_keep_the_catalog_order()
     {
-        // specs/learning-path-stages: the Multi-Agent System labs sit in a stage between Azure OpenAI labs, as in labs.json.
+        // The Multi-Agent System labs sit in a stage between Azure OpenAI labs, as in labs.json.
         const string Mas = "Multi-Agent System";
         LabDefinition[] labs =
         [

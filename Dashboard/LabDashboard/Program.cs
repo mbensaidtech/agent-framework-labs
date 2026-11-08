@@ -122,7 +122,7 @@ app.UseStaticFiles(new StaticFileOptions
 MarkdownPipeline markdown = new MarkdownPipelineBuilder().UseAdvancedExtensions().DisableHtml().Build();
 RouteGroupBuilder api = app.MapGroup("/api");
 
-// One learning path, stage by stage, in the order of labs.json (specs/learning-path-stages): each lab carries its stage.
+// One learning path, stage by stage, in the order of labs.json: each lab carries its stage.
 api.MapGet("/labs", (LabCatalog catalog, RunHistoryStore history, LabRunner runner, LabResetService reset) =>
     catalog.LearningPath.Select(lab => LabSummary.From(lab, history.ForLab(lab.Id), runner.ActiveRun, reset.HasCompletedCopy(lab), catalog.StageOf(lab))));
 

@@ -32,7 +32,7 @@ public static class ProgressSnapshot
             sortOrder = index,
             // Optional scenarios: completed without them, "Done+" with them (absent: the lab has no bonus)
             bonusScenarios = lab.BonusScenarios.Count > 0 ? lab.BonusScenarios : null,
-            // The stage of the learning path (specs/learning-path-stages): the admin dashboard groups and numbers the labs by stage.
+            // The stage of the learning path: the admin dashboard groups and numbers the labs by stage.
             stage = Stage(catalog.StageOf(lab)),
         }),
     }, JsonOptions)!;

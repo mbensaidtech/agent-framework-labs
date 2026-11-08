@@ -191,7 +191,7 @@ async function applyLanguage(lang) {
 function renderRail() {
   const list = document.getElementById("lab-list");
   document.getElementById("lab-count").textContent = String(state.labs.length);
-  // One learning path, in the order of labs.json, one group per stage (specs/learning-path-stages): the step is the position of the
+  // One learning path, in the order of labs.json, one group per stage: the step is the position of the
   // lab in the whole path, from 1; the lab number (its folder) comes second. A catalog without stages: one group per track.
   list.replaceChildren(...pathGroups(state.labs).map((group) => {
     const section = el("section", "lab-group");

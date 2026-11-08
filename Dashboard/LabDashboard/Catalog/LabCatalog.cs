@@ -168,7 +168,7 @@ public sealed partial class LabCatalog
     public IReadOnlyList<LabDefinition> Labs { get; }
 
     /// <summary>
-    /// The labs as the learner follows them: the order of labs.json, stage by stage (specs/learning-path-stages). labs.json is the single
+    /// The labs as the learner follows them: the order of labs.json, stage by stage. labs.json is the single
     /// source of truth of the path: nothing sorts or regroups the labs (not by number, track or title).
     /// </summary>
     public IReadOnlyList<LabDefinition> LearningPath { get; }
@@ -229,7 +229,7 @@ public sealed partial class LabCatalog
     }
 
     /// <summary>
-    /// specs/learning-path-stages, Business Rules 1–3: unique stage ids, a known stage for every lab, no empty stage, and the labs listed
+    /// The rules of the learning path: unique stage ids, a known stage for every lab, no empty stage, and the labs listed
     /// stage by stage in the order of the stages. A catalog without stages is one path in the order of its labs.
     /// </summary>
     private static void ValidateStages(IReadOnlyList<LabStage> stages, IReadOnlyList<LabDefinition> labs)

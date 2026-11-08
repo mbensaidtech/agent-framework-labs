@@ -113,7 +113,7 @@ public static class LearningJourney
     private static bool IsDone(LabJourney lab) => lab.State is JourneyState.Completed or JourneyState.ToResume;
 
     /// <summary>
-    /// One milestone per stage of the learning path (specs/learning-path-stages). A catalog without stages: one milestone per run of
+    /// One milestone per stage of the learning path. A catalog without stages: one milestone per run of
     /// consecutive labs sharing the same track and level.
     /// </summary>
     private static List<JourneyMilestone> Milestones(IReadOnlyList<LabJourney> labs)

@@ -5,12 +5,12 @@ It is a convenience layer: **every lab keeps working exactly the same with the C
 
 > Every lab of `LearningLabs/` is registered in `LabDashboard/labs.json` (21 exercises: the 16 AzureOpenAI labs, Lab06 and Lab16 in server + client, and the 3 MultiAgentSystem labs).
 > The two Lab06 labs are run in pairs: each run of one starts the reference solution of the other as its **companion** (see [Labs run in pairs](#labs-run-in-pairs-companion)), on port 5071.
-> Scenario 3 of Lab05 needs its MongoDB container (`docker compose up -d` in the lab's `MongoDB/` folder): without it, the Solution run fails with *"MongoDB is not reachable"*. Without Docker, choose *MongoDB without Docker* or *JSON file* in **Settings → Lab storage** (or the **Change** button of the Run tab): it saves `Storage:Mode` in the user secrets, see the lab README.
+> Scenario 3 of Lab05 needs its MongoDB container (`docker compose up -d` in the `MongoDB/` folder of the lab's `Start/` or `Solution/` project): without it, the Solution run fails with *"MongoDB is not reachable"*. Without Docker, choose *MongoDB without Docker* or *JSON file* in **Settings → Lab storage** (or the **Change** button of the Run tab): it saves `Storage:Mode` in the user secrets, see the lab README.
 > Lab07 needs an **embedding** deployment (`AzureOpenAI:EmbeddingDeploymentName`, not part of the settings form): without it, the run stops with *"'AzureOpenAI:EmbeddingDeploymentName' is not configured"*.
 > Lab09 is the first **interactive** lab of the catalog: scenario 1 waits for your decision in the input box (`Y` approves; the checks expect the approval), scenario 2 needs no input.
 > Lab10 starts its own MCP servers during the run and stops them (no companion): an HTTP server on `McpServer:BaseUrl` (`http://localhost:5100` by default, the port must be free) and a stdio server, a child process of the lab whose stderr the lab prints as `[server]` lines.
 > Lab11 prints the whole HTTP traffic of its agents (about 600 lines per run, every header and JSON body); the lab masks the `Authorization` header itself, and a check fails if a credential header is printed in clear.
-> Lab12 needs its MongoDB container (`docker compose up -d` in the lab's `MongoDB/` folder, port 27018): without it, the Solution run fails with *"MongoDB is not reachable"*. Without Docker, choose *MongoDB without Docker* or *JSON file* in **Settings → Lab storage** (or the **Change** button of the Run tab): it saves `Storage:Mode` in the user secrets, see the lab README. It is **interactive**: scenario 2 is a chat that waits for your messages in the input box (any message, or none); end it with an empty line, `exit` or **End input**. Its checks read scenario 1 and the greeting of scenario 2, not your messages.
+> Lab12 needs its MongoDB container (`docker compose up -d` in the `MongoDB/` folder of the lab's `Start/` or `Solution/` project, port 27018): without it, the Solution run fails with *"MongoDB is not reachable"*. Without Docker, choose *MongoDB without Docker* or *JSON file* in **Settings → Lab storage** (or the **Change** button of the Run tab): it saves `Storage:Mode` in the user secrets, see the lab README. It is **interactive**: scenario 2 is a chat that waits for your messages in the input box (any message, or none); end it with an empty line, `exit` or **End input**. Its checks read scenario 1 and the greeting of scenario 2, not your messages.
 
 ## Start it
 
@@ -426,7 +426,7 @@ The rules are in **one file**, `CommonUtilities/LabScenarios.cs`, compiled by th
 
 ## The learning path
 
-`labs.json` is the **single source of truth** of the learning path (specs/learning-path-stages): its `stages` array names the stages, and the order
+`labs.json` is the **single source of truth** of the learning path: its `stages` array names the stages, and the order
 of its `labs` array is the order of the path. Every support reads it — nothing sorts the labs by number, track or title:
 
 | Support | Reads the path from |

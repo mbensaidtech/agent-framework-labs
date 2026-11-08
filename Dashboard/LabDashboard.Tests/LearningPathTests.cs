@@ -7,7 +7,7 @@ using LabDashboard.Reporting;
 namespace LabDashboard.Tests;
 
 /// <summary>
-/// specs/learning-path-stages: labs.json is the single source of truth of the learning path (its stages, and the order of its labs).
+/// labs.json is the single source of truth of the learning path (its stages, and the order of its labs).
 /// The Lab Bench, the admin dashboard (catalog.synced, published catalog), the README Learning Path and the training roadmap must agree with it.
 /// </summary>
 public partial class LearningPathTests

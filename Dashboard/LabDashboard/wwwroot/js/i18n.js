@@ -1408,7 +1408,7 @@ export const language = () => current;
 export const locale = () => (current === "fr" ? "fr-FR" : "en-US");
 
 /**
- * Name of a stage of the learning path (specs/learning-path-stages): "Stage 1 · Build an agent", or "Going further · optional"
+ * Name of a stage of the learning path: "Stage 1 · Build an agent", or "Going further · optional"
  * for the optional labs; the title in the current language when labs.json translates it.
  */
 export function stageName(stage) {

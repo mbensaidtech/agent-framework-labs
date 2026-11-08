@@ -81,7 +81,7 @@ function trackText(track) {
   return journey.labs.find((lab) => sameTrack(lab.track, track))?.translations?.[language()]?.track ?? track;
 }
 
-/** The stage of a milestone (specs/learning-path-stages), from the catalog lab summaries; null for a catalog without stages. */
+/** The stage of a milestone, from the catalog lab summaries; null for a catalog without stages. */
 const milestoneStage = (milestone) => (milestone.stage ? catalogLab(milestone.labIds[0])?.stage ?? null : null);
 
 /** Name of a milestone in its group: the stage, else the level (under its track heading). */
@@ -342,7 +342,7 @@ function renderRules() {
 
 /**
  * Trajectory: one group per stage of the learning path, one chip per exercise in the order of the path, numbered over the whole
- * path (specs/learning-path-stages). A catalog without stages: one section per track, one group per level inside it.
+ * path. A catalog without stages: one section per track, one group per level inside it.
  */
 function renderPath(model) {
   const section = tile("path");
@@ -407,7 +407,7 @@ function renderLegend(model) {
 }
 
 /**
- * Position in the learning path, from 1: over the whole path when the labs have stages (specs/learning-path-stages), in the path of
+ * Position in the learning path, from 1: over the whole path when the labs have stages, in the path of
  * its track otherwise. The lab number is the folder, not the step.
  */
 function stepOf(lab, model) {
